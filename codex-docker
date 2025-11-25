@@ -3,8 +3,16 @@ set -euo pipefail
 
 IMAGE_NAME="codex-docker:latest"
 
+extra_mounts=()
+if [[ -d "${HOME}/.codex" ]]; then
+  extra_mounts+=( -v "${HOME}/.codex:/root/.codex" )
+else
+  echo "Warning: ${HOME}/.codex not found; running without host Codex config." >&2
+fi
+
 # Run Codex interactively from the current directory, mounting it at /workspace.
 docker run --rm -it \
   -v "${PWD}:/workspace" \
   -w /workspace \
+  "${extra_mounts[@]}" \
   "${IMAGE_NAME}" "$@"

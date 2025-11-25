@@ -6,13 +6,12 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 ```sh
 ./build-codex-docker.sh
 ```
-Requires `~/.codex/auth.json` and BuildKit (for the secret mount).
 
 ## Run
 ```sh
 ./codex-docker
 ```
-Mounts the current directory to `/workspace` and launches Codex interactively.
+Mounts the current directory to `/workspace` and your host `~/.codex` into `/root/.codex` so the container uses your existing Codex config/keys.
 
 ## Make `codex-docker` available everywhere
 - Add the repo root to your `PATH`, e.g. `export PATH="$PATH:/path/to/codex-docker-repo"`, or
