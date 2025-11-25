@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+IMAGE_NAME="codex-docker:latest"
+
+# Run Codex interactively from the current directory, mounting it at /workspace.
+docker run --rm -it \
+  -v "${PWD}:/workspace" \
+  -w /workspace \
+  "${IMAGE_NAME}" "$@"
