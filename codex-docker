@@ -10,9 +10,12 @@ else
   echo "Warning: ${HOME}/.codex not found; running without host Codex config." >&2
 fi
 
-# Run Codex interactively from the current directory, mounting it at /workspace.
+# Run Codex interactively from the current directory, mounting it at /workspace/<folder-name>.
+folder_name="$(basename "$PWD")"
+container_workspace="/workspace/${folder_name}"
+
 docker run --rm -it \
-  -v "${PWD}:/workspace" \
-  -w /workspace \
+  -v "${PWD}:${container_workspace}" \
+  -w "${container_workspace}" \
   "${extra_mounts[@]}" \
   "${IMAGE_NAME}" "$@"
