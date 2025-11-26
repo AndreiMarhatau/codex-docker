@@ -1,0 +1,43 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate lockfile
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+      - name: npm ci (no scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Free disk space for large base image
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache || true
+          docker system prune -af --volumes || true
+          echo "Free space after cleanup:"
+          df -h
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (amd64, smoke test target)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          platforms: linux/amd64
+          pull: true
+          target: ci-smoke
+          outputs: type=cacheonly
+          cache-from: type=gha,scope=codex-docker-pr
+          cache-to: type=gha,mode=max,scope=codex-docker-pr
