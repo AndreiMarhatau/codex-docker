@@ -2,6 +2,10 @@
 
 Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs the Codex CLI directly.
 
+## Why this exists
+- **Problem:** Codex sessions sometimes need extra system tools or long-running autonomy. Running that directly on your host can be risky or require manual babysitting.
+- **Solution:** Provide Codex its own disposable container that mirrors your normal setup (current repo + `~/.codex` config) so it can act autonomously and safely. The image is based on the same `codex-universal` container used by Codex Web, giving a familiar middle ground between the codex web experience and the fully local CLI.
+
 ## Dependencies
 - Base image: `ghcr.io/openai/codex-universal` (pulled during build).
 - CLI: `@openai/codex` installed globally via npm inside the image.
@@ -18,7 +22,9 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 ```
 Mounts the current directory to `/workspace` and your host `~/.codex` into `/root/.codex` so the container uses your existing Codex config/keys.
 
-The image bundles a fallback `DOCKER_AGENTS.md` (copied into `/opt/codex/AGENTS.md` inside the image) and passes `-c project_doc_fallback_filenames=["/opt/codex/AGENTS.md"]` to Codex so the CLI always has baseline guidance even when a project-specific AGENTS file is missing.
+Pass arguments exactly as you would to `codex`; the script forwards them into the containerized CLI. For example, `codex-docker resume` behaves the same as running `codex resume`, just inside the isolated environment.
+
+The image bundles a fallback `DOCKER_AGENTS.md` (copied into `/opt/codex/AGENTS.md` inside the image) and passes `-c project_doc_fallback_filenames=["/opt/codex/AGENTS.md"]` to Codex so the CLI always has guidance about the environment.
 
 ## Make `codex-docker` available everywhere
 - Add the repo root to your `PATH`, e.g. `export PATH="$PATH:/path/to/codex-docker-repo"`, or
