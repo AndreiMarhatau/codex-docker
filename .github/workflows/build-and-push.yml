@@ -7,8 +7,6 @@ on:
       - "Dockerfile"
       - "package.json"
       - "package-lock.json"
-      - "codex-docker"
-      - "build-codex-docker.sh"
       - "DOCKER_AGENTS.md"
       - ".github/workflows/build-and-push.yml"
   workflow_dispatch:
