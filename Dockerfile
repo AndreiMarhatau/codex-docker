@@ -1,7 +1,7 @@
 FROM ghcr.io/openai/codex-universal
 
 RUN mkdir -p /opt/codex
-COPY AGENTS.md /opt/codex/AGENTS.md
+COPY DOCKER_AGENTS.md /opt/codex/AGENTS.md
 
 # Install the Codex CLI globally using the default nvm Node.
 RUN bash -lc ". $NVM_DIR/nvm.sh && nvm use default && npm install -g @openai/codex"

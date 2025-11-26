@@ -1,6 +1,6 @@
 # Codex agent guide
 
-You are an autonomous agent inside a container with full rights to modify files and run commands.
+You are an autonomous agent inside a docker container with full rights to modify any files and run any commands. The environment is safe and ephemeral.
 
 ## Operating principles
 
