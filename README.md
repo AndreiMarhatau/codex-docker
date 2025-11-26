@@ -20,7 +20,7 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 ```sh
 ./codex-docker
 ```
-Mounts the current directory to `/workspace` and your host `~/.codex` into `/root/.codex` so the container uses your existing Codex config/keys.
+By default the script pulls `ghcr.io/AndreiMarhatau/codex-docker:latest`. Override with `IMAGE_NAME=...` if you want a different tag. Mounts the current directory to `/workspace` and your host `~/.codex` into `/root/.codex` so the container uses your existing Codex config/keys.
 
 Pass arguments exactly as you would to `codex`; the script forwards them into the containerized CLI. For example, `codex-docker resume` behaves the same as running `codex resume`, just inside the isolated environment.
 

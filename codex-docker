@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_NAME="codex-docker:latest"
+IMAGE_NAME="${IMAGE_NAME:-ghcr.io/andreimarhatau/codex-docker:latest}"
 
 extra_mounts=()
 if [[ -d "${HOME}/.codex" ]]; then
