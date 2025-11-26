@@ -1,4 +1,4 @@
-FROM ghcr.io/openai/codex-universal@sha256:86f25fd11da9839ae4d75749ae95782f3304d95caab8f7592f92bc2b9ab6e970
+FROM ghcr.io/openai/codex-universal@sha256:86f25fd11da9839ae4d75749ae95782f3304d95caab8f7592f92bc2b9ab6e970 AS release
 
 WORKDIR /opt/codex
 COPY DOCKER_AGENTS.md /opt/codex/AGENTS.md
@@ -19,3 +19,7 @@ RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
 
 # Launch Codex by default with a bypassed sandbox and search enabled.
 ENTRYPOINT ["codex", "-c", "project_doc_fallback_filenames=[\"/opt/codex/AGENTS.md\"]", "--dangerously-bypass-approvals-and-sandbox", "--search"]
+
+# CI smoke-test target: build with --target ci-smoke to verify binaries without exporting an image.
+FROM release AS ci-smoke
+RUN codex --version && node --version
