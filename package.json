@@ -1,0 +1,10 @@
+{
+  "name": "codex-docker-meta",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Version pin for @openai/codex used by the Docker image build",
+  "license": "MIT",
+  "dependencies": {
+    "@openai/codex": "0.63.0"
+  }
+}
