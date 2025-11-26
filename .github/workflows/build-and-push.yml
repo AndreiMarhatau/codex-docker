@@ -28,8 +28,8 @@ jobs:
 
       - name: Free disk space for large base image
         run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL || true
-          docker system prune -af || true
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache || true
+          docker system prune -af --volumes || true
           echo "Free space after cleanup:"
           df -h
 
