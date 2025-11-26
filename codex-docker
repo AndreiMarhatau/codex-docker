@@ -14,7 +14,23 @@ fi
 folder_name="$(basename "$PWD")"
 container_workspace="/workspace/${folder_name}"
 
+# Generate a unique container name (override with CONTAINER_NAME if desired).
+CONTAINER_NAME="${CONTAINER_NAME:-codex-$(date +%s)-$RANDOM}"
+
+# Highlight the exec helper command for easy copy/paste.
+if [[ -t 1 ]]; then
+  color="\033[1;36m"   # bright cyan
+  reset="\033[0m"
+else
+  color=""
+  reset=""
+fi
+
+echo "To open another terminal inside this container along with codex, run:"
+printf "  ${color}docker exec -it %s /bin/bash${reset}\n" "${CONTAINER_NAME}"
+
 docker run --rm -it \
+  --name "${CONTAINER_NAME}" \
   -v "${PWD}:${container_workspace}" \
   -w "${container_workspace}" \
   "${extra_mounts[@]}" \
