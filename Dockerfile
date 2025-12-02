@@ -23,7 +23,15 @@ RUN cat <<'EOF' >/usr/local/bin/codex-review \
   && ln -sf /usr/local/bin/codex-review /usr/local/bin/review
 #!/usr/bin/env bash
 set -euo pipefail
-codex exec --dangerously-bypass-approvals-and-sandbox "Review uncommitted changes, do not make any changes yourself." 2>/dev/null
+
+summary="$*"
+note=""
+if [[ -n "${summary}" ]]; then
+  # Preserve the literal summary text (no command substitution) and quote it in the review note.
+  printf -v note ' Changes made on behalf of user request: "%s".' "$summary"
+fi
+
+codex exec --dangerously-bypass-approvals-and-sandbox "Review uncommitted changes, do not make any changes yourself.${note}" 2>/dev/null
 EOF
 
 # Launch Codex by default with a bypassed sandbox and search enabled.
