@@ -3,6 +3,7 @@ FROM ghcr.io/openai/codex-universal@sha256:86f25fd11da9839ae4d75749ae95782f3304d
 WORKDIR /opt/codex
 COPY DOCKER_AGENTS.md /opt/codex/AGENTS.md
 COPY package.json package-lock.json ./
+COPY codex-review-prompt.md /opt/codex/codex-review-prompt.md
 
 # Install the pinned Codex CLI globally using the default nvm Node.
 RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
@@ -23,15 +24,8 @@ RUN cat <<'EOF' >/usr/local/bin/codex-review \
   && ln -sf /usr/local/bin/codex-review /usr/local/bin/review
 #!/usr/bin/env bash
 set -euo pipefail
-
-summary="$*"
-note=""
-if [[ -n "${summary}" ]]; then
-  # Preserve the literal summary text (no command substitution) and quote it in the review note.
-  printf -v note ' Changes made on behalf of user request: "%s".' "$summary"
-fi
-
-codex exec --dangerously-bypass-approvals-and-sandbox "Review uncommitted changes, do not make any changes yourself.${note}" 2>/dev/null
+prompt="$(cat /opt/codex/codex-review-prompt.md)"
+codex exec --dangerously-bypass-approvals-and-sandbox "${prompt}" 2>/dev/null
 EOF
 
 # Launch Codex by default with a bypassed sandbox and search enabled.
