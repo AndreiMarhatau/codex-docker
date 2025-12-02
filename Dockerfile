@@ -17,6 +17,15 @@ RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
   && ln -sf "${BIN_DIR}/codex" /usr/local/bin/codex \
   && ln -sf "${BIN_DIR}/node" /usr/local/bin/node'
 
+# Provide a convenient helper to run the required uncommitted-changes review inside the container.
+RUN cat <<'EOF' >/usr/local/bin/codex-review \
+  && chmod +x /usr/local/bin/codex-review \
+  && ln -sf /usr/local/bin/codex-review /usr/local/bin/review
+#!/usr/bin/env bash
+set -euo pipefail
+codex exec --dangerously-bypass-approvals-and-sandbox "Review uncommitted changes, do not make any changes yourself." 2>/dev/null
+EOF
+
 # Launch Codex by default with a bypassed sandbox and search enabled.
 ENTRYPOINT ["codex", "-c", "project_doc_fallback_filenames=[\"/opt/codex/AGENTS.md\"]", "--dangerously-bypass-approvals-and-sandbox", "--search"]
 
