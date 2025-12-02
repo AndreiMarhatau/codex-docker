@@ -1,4 +1,4 @@
-FROM ghcr.io/openai/codex-universal@sha256:86f25fd11da9839ae4d75749ae95782f3304d95caab8f7592f92bc2b9ab6e970 AS release
+FROM ghcr.io/openai/codex-universal@sha256:e47849324e35257850d13b7173d2d6a6a81e99d6e1058f4b0761c4adeddc3f17 AS release
 
 WORKDIR /opt/codex
 COPY DOCKER_AGENTS.md /opt/codex/AGENTS.md
