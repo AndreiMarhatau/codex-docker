@@ -1,9 +1,12 @@
 FROM ghcr.io/openai/codex-universal@sha256:e47849324e35257850d13b7173d2d6a6a81e99d6e1058f4b0761c4adeddc3f17 AS release
 
 WORKDIR /opt/codex
-COPY DOCKER_AGENTS.md /opt/codex/AGENTS.md
 COPY package.json package-lock.json ./
 COPY codex-review-prompt.md /opt/codex/codex-review-prompt.md
+
+# Ensure Codex home exists and provide the container-specific agents file there by default.
+RUN mkdir -p /root/.codex
+COPY DOCKER_AGENTS.md /root/.codex/AGENTS.override.md
 
 # Install the pinned Codex CLI globally using the default nvm Node.
 RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
@@ -25,11 +28,11 @@ RUN cat <<'EOF' >/usr/local/bin/codex-review \
 #!/usr/bin/env bash
 set -euo pipefail
 prompt="$(cat /opt/codex/codex-review-prompt.md)"
-codex exec --dangerously-bypass-approvals-and-sandbox "${prompt}" 2>/dev/null
+codex exec --dangerously-bypass-approvals-and-sandbox -c features.web_search_request=true "${prompt}" 2>/dev/null
 EOF
 
 # Launch Codex by default with a bypassed sandbox and search enabled.
-ENTRYPOINT ["codex", "-c", "project_doc_fallback_filenames=[\"/opt/codex/AGENTS.md\"]", "--dangerously-bypass-approvals-and-sandbox", "--search"]
+ENTRYPOINT ["codex", "--dangerously-bypass-approvals-and-sandbox", "--search"]
 
 # CI smoke-test target: build with --target ci-smoke to verify binaries without exporting an image.
 FROM release AS ci-smoke

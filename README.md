@@ -30,6 +30,10 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 ## Dependencies
 - Base image: `ghcr.io/openai/codex-universal` (pulled during build).
 - CLI: `@openai/codex` installed globally inside the image.
-- Entrypoint arguments: `codex -c project_doc_fallback_filenames=["/opt/codex/AGENTS.md"] --dangerously-bypass-approvals-and-sandbox --search`.
+- Entrypoint arguments: `codex --dangerously-bypass-approvals-and-sandbox --search`.
 - Codex review arguments: `codex exec --dangerously-bypass-approvals-and-sandbox "${prompt}" 2>/dev/null`
 - codex-review-prompt.md file contains part of the "review_prompt.md" file from codex repository until it introduces non-interactive review process, which is available now only in interactive mode via /review command.
+
+## Container-only AGENTS override
+- The image ships `DOCKER_AGENTS.md`; it is copied to `/root/.codex/AGENTS.override.md` inside the image.
+- The `codex-docker` helper also bind-mounts that file into `/root/.codex/AGENTS.override.md` (read-only) so it is present even when your host `~/.codex` is mounted. The host filesystem is not modified and no project files are touched.
