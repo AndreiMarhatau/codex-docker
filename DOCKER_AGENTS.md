@@ -13,5 +13,5 @@ You are an autonomous agent inside a docker container with full rights to modify
 
 - Run the full suite of relevant checks after edits (tests, lints, builds); never limit runs to just touched files.
 - Ensure every non-doc change is covered by tests or other verification; install any needed tools to run them.
-- Always run `codex-review` command after you applied all changes and verified with tests/tools. It reviews all uncommitted changes. Re-run until it reports no issues, fixing anything it flags. In case of a conflict between any reported issue and the user’s requirements, prioritize the user’s requirements. Always run this command with extended timeout, because it takes from several minutes up to hours in some very complicated cases.
+- Always run `codex-review` command (bare, without any args) after you applied all changes and verified with tests/tools. It reviews all uncommitted changes. Re-run until it reports no issues, fixing anything it flags. In case of a conflict between any reported issue and the user’s requirements, prioritize the user’s requirements. Always run this command with extended tool call timeout, because it takes from several minutes up to hours in some very complicated cases.
 - Reply to the user only when work is fully verified, or if blocked by open questions/unclear requirements.
