@@ -34,6 +34,9 @@ EOF
 # Launch Codex by default with a bypassed sandbox and search enabled.
 ENTRYPOINT ["codex", "--dangerously-bypass-approvals-and-sandbox", "--search"]
 
-# CI smoke-test target: build with --target ci-smoke to verify binaries without exporting an image.
+# CI smoke-test target: build with --target ci-smoke to verify the exact Codex commands we ship.
 FROM release AS ci-smoke
-RUN codex --version && node --version
+RUN codex --dangerously-bypass-approvals-and-sandbox --search --version \
+  && codex exec --dangerously-bypass-approvals-and-sandbox -c features.web_search_request=true --help >/dev/null \
+  && bash -n /usr/local/bin/codex-review \
+  && node --version
