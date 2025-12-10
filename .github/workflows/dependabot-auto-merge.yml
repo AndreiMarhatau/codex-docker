@@ -10,16 +10,53 @@ jobs:
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.pull_requests[0].user.login == 'dependabot[bot]' &&
-      github.event.workflow_run.pull_requests[0].head_repository.full_name == github.repository
+      contains(github.event.workflow_run.head_branch, 'dependabot/') &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
     steps:
-      - name: Auto-merge Dependabot PR
+      - name: Find PR number from branch
+        id: find-pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          pr_number=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --state open \
+            --head "$HEAD_BRANCH" \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -z "$pr_number" ]; then
+            echo "No open PR found for branch $HEAD_BRANCH; skipping auto-merge."
+            exit 0
+          fi
+
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure PR author is Dependabot
+        id: ensure-author
+        if: steps.find-pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.find-pr.outputs.number }}
+        run: |
+          author=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json author --jq '.author.login')
+
+          if [ "$author" != "dependabot[bot]" ]; then
+            echo "PR $PR_NUMBER author is $author, not dependabot; skipping auto-merge."
+            exit 0
+          fi
+
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Auto-merge Dependabot PR
+        if: steps.ensure-author.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.find-pr.outputs.number }}
         run: |
           gh pr merge "$PR_NUMBER" --squash --auto --repo "${{ github.repository }}"
