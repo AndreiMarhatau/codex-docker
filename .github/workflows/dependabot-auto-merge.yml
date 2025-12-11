@@ -46,8 +46,8 @@ jobs:
         run: |
           author=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json author --jq '.author.login')
 
-          if [ "$author" != "dependabot[bot]" ]; then
-            echo "PR $PR_NUMBER author is $author, not dependabot; skipping auto-merge."
+          if [ "$author" != "dependabot[bot]" ] && [ "$author" != "app/dependabot" ]; then
+            echo "PR $PR_NUMBER author is $author, not Dependabot; skipping auto-merge."
             exit 0
           fi
 
