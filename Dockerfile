@@ -2,7 +2,6 @@ FROM ghcr.io/openai/codex-universal@sha256:e47849324e35257850d13b7173d2d6a6a81e9
 
 WORKDIR /opt/codex
 COPY package.json package-lock.json ./
-COPY codex-review-prompt.md /opt/codex/codex-review-prompt.md
 
 # Ensure Codex home exists and provide the container-specific agents file there by default.
 RUN mkdir -p /root/.codex
@@ -27,8 +26,8 @@ RUN cat <<'EOF' >/usr/local/bin/codex-review \
   && ln -sf /usr/local/bin/codex-review /usr/local/bin/review
 #!/usr/bin/env bash
 set -euo pipefail
-prompt="$(cat /opt/codex/codex-review-prompt.md)"
-codex exec --dangerously-bypass-approvals-and-sandbox -c features.web_search_request=true "${prompt}" 2>/dev/null
+codex exec --dangerously-bypass-approvals-and-sandbox --json -c features.web_search_request=true review --uncommitted \
+  | jq -rs '[.[] | select(.type=="item.completed" and .item.type=="agent_message") | .item.text] | last // ""'
 EOF
 
 # Launch Codex by default with a bypassed sandbox and search enabled.
@@ -37,6 +36,7 @@ ENTRYPOINT ["codex", "--dangerously-bypass-approvals-and-sandbox", "--search"]
 # CI smoke-test target: build with --target ci-smoke to verify the exact Codex commands we ship.
 FROM release AS ci-smoke
 RUN codex --dangerously-bypass-approvals-and-sandbox --search --version \
-  && codex exec --dangerously-bypass-approvals-and-sandbox -c features.web_search_request=true --help >/dev/null \
+  && codex exec --dangerously-bypass-approvals-and-sandbox --json -c features.web_search_request=true review --help >/dev/null \
+  && jq --version >/dev/null \
   && bash -n /usr/local/bin/codex-review \
   && node --version
