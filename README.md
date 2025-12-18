@@ -31,8 +31,7 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 - Base image: `ghcr.io/openai/codex-universal` (pulled during build).
 - CLI: `@openai/codex` installed globally inside the image.
 - Entrypoint arguments: `codex --dangerously-bypass-approvals-and-sandbox --search`.
-- Codex review arguments: `codex exec --dangerously-bypass-approvals-and-sandbox "${prompt}" 2>/dev/null`
-- codex-review-prompt.md file contains part of the "review_prompt.md" file from codex repository until it introduces non-interactive review process, which is available now only in interactive mode via /review command.
+- Codex review arguments: `codex exec --dangerously-bypass-approvals-and-sandbox --json -c features.web_search_request=true review --uncommitted | jq -rs '[.[] | select(.type==\"item.completed\" and .item.type==\"agent_message\") | .item.text] | last // \"\"'`
 
 ## Container-only AGENTS override
 - The image ships `DOCKER_AGENTS.md`; it is copied to `/root/.codex/AGENTS.override.md` inside the image.
