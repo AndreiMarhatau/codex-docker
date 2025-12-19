@@ -55,6 +55,9 @@ function App() {
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [resumePrompt, setResumePrompt] = useState('');
   const [taskDetail, setTaskDetail] = useState(null);
+  const [imageInfo, setImageInfo] = useState(null);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageUpdating, setImageUpdating] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
@@ -99,6 +102,18 @@ function App() {
     }
   }
 
+  async function refreshImageInfo() {
+    setImageLoading(true);
+    try {
+      const info = await apiRequest('/api/settings/image');
+      setImageInfo(info);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImageLoading(false);
+    }
+  }
+
   useEffect(() => {
     refreshAll().catch((err) => setError(err.message));
   }, []);
@@ -112,6 +127,11 @@ function App() {
     }, 8000);
     return () => clearInterval(interval);
   }, [selectedTaskId]);
+
+  useEffect(() => {
+    if (activeTab !== 2) return;
+    refreshImageInfo().catch(() => {});
+  }, [activeTab]);
 
   useEffect(() => {
     if (!selectedTaskId) {
@@ -267,6 +287,19 @@ function App() {
     }
   }
 
+  async function handlePullImage() {
+    setError('');
+    setImageUpdating(true);
+    try {
+      const info = await apiRequest('/api/settings/image/pull', { method: 'POST' });
+      setImageInfo(info);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImageUpdating(false);
+    }
+  }
+
   async function handlePushTask() {
     if (!selectedTaskId) return;
     setError('');
@@ -319,6 +352,7 @@ function App() {
       >
         <Tab label="Repo Environments" />
         <Tab label="Tasks" />
+        <Tab label="Settings" />
       </Tabs>
 
       {activeTab === 0 && (
@@ -669,6 +703,58 @@ function App() {
                 </CardContent>
               </Card>
             </Stack>
+        </Box>
+      )}
+
+      {activeTab === 2 && (
+        <Box className="surface-grid">
+          <Stack spacing={3}>
+            <Card>
+              <CardContent>
+                <Stack spacing={2}>
+                  <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                    <Typography variant="h6">Codex Docker Image</Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => refreshImageInfo()}
+                      disabled={imageLoading || imageUpdating}
+                    >
+                      Refresh
+                    </Button>
+                  </Stack>
+                  {imageLoading && (
+                    <Typography color="text.secondary">Loading image details...</Typography>
+                  )}
+                  {!imageLoading && (
+                    <Stack spacing={1}>
+                      <Typography>
+                        Image: <span className="mono">{imageInfo?.imageName || 'unknown'}</span>
+                      </Typography>
+                      <Typography>
+                        Created: {formatTimestamp(imageInfo?.imageCreatedAt)}
+                      </Typography>
+                      {imageInfo?.imageId && (
+                        <Typography className="mono">ID: {imageInfo.imageId}</Typography>
+                      )}
+                      {imageInfo && imageInfo.present === false && (
+                        <Typography color="text.secondary">
+                          Image not found locally. Pull to download it.
+                        </Typography>
+                      )}
+                    </Stack>
+                  )}
+                  <Button
+                    variant="contained"
+                    onClick={handlePullImage}
+                    disabled={imageUpdating}
+                  >
+                    {imageUpdating ? 'Updating image...' : 'Update image'}
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
         </Box>
       )}
 

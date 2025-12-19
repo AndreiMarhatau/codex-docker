@@ -62,4 +62,17 @@ describe('API', () => {
     const { app } = await createTestApp();
     await request(app).get('/api/tasks/missing').expect(404);
   });
+
+  it('returns codex image info and pulls updates', async () => {
+    const { app } = await createTestApp();
+
+    const infoRes = await request(app).get('/api/settings/image').expect(200);
+    expect(infoRes.body.imageName).toBeTruthy();
+    expect(infoRes.body.imageCreatedAt).toBe('2025-12-18T12:34:56.000Z');
+    expect(infoRes.body.present).toBe(true);
+
+    const pullRes = await request(app).post('/api/settings/image/pull').expect(200);
+    expect(pullRes.body.imageName).toBe(infoRes.body.imageName);
+    expect(pullRes.body.present).toBe(true);
+  });
 });

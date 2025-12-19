@@ -4,7 +4,12 @@ import os from 'node:os';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 
-export function createMockExec({ branches = ['main'] } = {}) {
+export function createMockExec({
+  branches = ['main'],
+  dockerImageExists = true,
+  dockerImageId = 'sha256:mock-image',
+  dockerCreatedAt = '2025-12-18T12:34:56.000Z'
+} = {}) {
   const calls = [];
   const threadId = '019b341f-04d9-73b3-8263-2c05ca63d690';
 
@@ -41,7 +46,7 @@ export function createMockExec({ branches = ['main'] } = {}) {
         await fs.rm(worktreePath, { recursive: true, force: true });
         return { stdout: '', stderr: '', code: 0 };
       }
-      if (args[0] === '-C' && args[2] === 'push') {
+      if (args[0] === '-C' && args.includes('push')) {
         return { stdout: '', stderr: '', code: 0 };
       }
     }
@@ -52,6 +57,18 @@ export function createMockExec({ branches = ['main'] } = {}) {
       const stdout = 'banner line\n' + JSON.stringify({ type: 'thread.started', thread_id: threadId }) + '\n' +
         JSON.stringify({ type: 'item.completed', item: { id: 'item_1', type: 'agent_message', text: isResume ? 'RESUME' : 'OK' } });
       return { stdout, stderr: '', code: 0 };
+    }
+
+    if (command === 'docker') {
+      if (args[0] === 'image' && args[1] === 'inspect') {
+        if (!dockerImageExists) {
+          return { stdout: '', stderr: 'No such image', code: 1 };
+        }
+        return { stdout: `${dockerImageId}|${dockerCreatedAt}`, stderr: '', code: 0 };
+      }
+      if (args[0] === 'pull') {
+        return { stdout: 'pulled', stderr: '', code: 0 };
+      }
     }
 
     return { stdout: '', stderr: 'unknown command', code: 1 };

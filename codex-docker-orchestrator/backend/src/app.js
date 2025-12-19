@@ -49,6 +49,16 @@ function createApp({ orchestrator = new Orchestrator() } = {}) {
     res.json(tasks);
   }));
 
+  app.get('/api/settings/image', asyncHandler(async (req, res) => {
+    const info = await orchestrator.getImageInfo();
+    res.json(info);
+  }));
+
+  app.post('/api/settings/image/pull', asyncHandler(async (req, res) => {
+    const info = await orchestrator.pullImage();
+    res.json(info);
+  }));
+
   app.post('/api/tasks', asyncHandler(async (req, res) => {
     const { envId, ref, prompt } = req.body;
     if (!envId || !prompt) {
