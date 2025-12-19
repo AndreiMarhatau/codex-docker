@@ -11,6 +11,15 @@ npm install
 npm run start
 ```
 
+### UI (served by backend)
+```
+cd codex-docker-orchestrator/ui
+npm install
+npm run build
+```
+
+Once the UI is built, start the backend and visit `http://localhost:8080`. The backend serves the UI bundle from `ui/dist`, and the UI makes same-origin API calls (no separate UI server needed).
+
 ### UI (dev)
 ```
 cd codex-docker-orchestrator/ui
