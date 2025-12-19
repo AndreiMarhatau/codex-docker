@@ -75,6 +75,55 @@ function parseLogEntries(content) {
   });
 }
 
+const MAX_DIFF_LINES = 400;
+
+function normalizeDiffPath(aPath, bPath) {
+  if (bPath === 'dev/null') return aPath;
+  if (aPath === 'dev/null') return bPath;
+  return bPath;
+}
+
+function parseUnifiedDiff(diffText) {
+  if (!diffText) return [];
+  const lines = diffText.split('\n');
+  const files = [];
+  let current = null;
+  for (const line of lines) {
+    if (line.startsWith('diff --git ')) {
+      if (current) {
+        const trimmed = current.diff.trimEnd();
+        const lineCount = trimmed ? trimmed.split('\n').length : 0;
+        files.push({
+          ...current,
+          lineCount,
+          tooLarge: lineCount > MAX_DIFF_LINES
+        });
+      }
+      const match = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+      const aPath = match ? match[1] : 'unknown';
+      const bPath = match ? match[2] : aPath;
+      current = {
+        path: normalizeDiffPath(aPath, bPath),
+        diff: `${line}\n`
+      };
+      continue;
+    }
+    if (current) {
+      current.diff += `${line}\n`;
+    }
+  }
+  if (current) {
+    const trimmed = current.diff.trimEnd();
+    const lineCount = trimmed ? trimmed.split('\n').length : 0;
+    files.push({
+      ...current,
+      lineCount,
+      tooLarge: lineCount > MAX_DIFF_LINES
+    });
+  }
+  return files;
+}
+
 class Orchestrator {
   constructor(options = {}) {
     this.orchHome = options.orchHome || process.env.ORCH_HOME || DEFAULT_ORCH_HOME;
@@ -309,6 +358,36 @@ class Orchestrator {
     return { ...meta, logTail, runLogs };
   }
 
+  async getTaskDiff(taskId) {
+    const meta = await readJson(this.taskMetaPath(taskId));
+    if (!meta.baseSha) {
+      return {
+        available: false,
+        reason: 'Base commit was not recorded for this task.'
+      };
+    }
+    try {
+      const result = await this.execOrThrow('git', [
+        '-C',
+        meta.worktreePath,
+        'diff',
+        '--no-color',
+        `${meta.baseSha}...HEAD`
+      ]);
+      const files = parseUnifiedDiff(result.stdout);
+      return {
+        available: true,
+        baseSha: meta.baseSha,
+        files
+      };
+    } catch (error) {
+      return {
+        available: false,
+        reason: error.message || 'Unable to generate diff.'
+      };
+    }
+  }
+
   async readLogTail(taskId) {
     const meta = await readJson(this.taskMetaPath(taskId));
     const latestRun = meta.runs[meta.runs.length - 1];
@@ -487,6 +566,8 @@ class Orchestrator {
       '+refs/heads/*:refs/remotes/origin/*'
     ]);
     const worktreeRef = await resolveRefInRepo(this.execOrThrow.bind(this), env.mirrorPath, targetRef);
+    const baseShaResult = await this.execOrThrow('git', ['--git-dir', env.mirrorPath, 'rev-parse', worktreeRef]);
+    const baseSha = baseShaResult.stdout.trim() || null;
     await this.execOrThrow('git', ['--git-dir', env.mirrorPath, 'worktree', 'add', worktreePath, worktreeRef]);
     await this.execOrThrow('git', ['-C', worktreePath, 'checkout', '-b', branchName]);
 
@@ -498,6 +579,7 @@ class Orchestrator {
       envId,
       repoUrl: env.repoUrl,
       ref: targetRef,
+      baseSha,
       branchName,
       worktreePath,
       threadId: null,

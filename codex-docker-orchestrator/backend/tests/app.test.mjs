@@ -51,6 +51,11 @@ describe('API', () => {
 
     expect(taskRes.body.status).toBe('running');
 
+    const diffRes = await request(app).get(`/api/tasks/${taskRes.body.taskId}/diff`).expect(200);
+    expect(diffRes.body.available).toBe(true);
+    expect(diffRes.body.baseSha).toBeTruthy();
+    expect(diffRes.body.files.length).toBeGreaterThanOrEqual(0);
+
     const listRes = await request(app).get('/api/tasks').expect(200);
     expect(listRes.body).toHaveLength(1);
 

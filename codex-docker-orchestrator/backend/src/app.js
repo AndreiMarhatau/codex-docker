@@ -80,6 +80,18 @@ function createApp({ orchestrator = new Orchestrator() } = {}) {
     }
   }));
 
+  app.get('/api/tasks/:taskId/diff', asyncHandler(async (req, res) => {
+    try {
+      const diff = await orchestrator.getTaskDiff(req.params.taskId);
+      res.json(diff);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return res.status(404).send('Task not found');
+      }
+      throw error;
+    }
+  }));
+
   app.post('/api/tasks/:taskId/resume', asyncHandler(async (req, res) => {
     const { prompt } = req.body;
     if (!prompt) {

@@ -82,6 +82,17 @@ body {
   background: var(--panel-background);
 }
 
+.diff-file {
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--panel-background);
+}
+
+.diff-box {
+  max-height: 360px;
+}
+
 .log-summary {
   display: flex;
   justify-content: space-between;
