@@ -1,5 +1,12 @@
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+
+export function apiUrl(path) {
+  if (!apiBaseUrl) return path;
+  return new URL(path, apiBaseUrl.endsWith('/') ? apiBaseUrl : `${apiBaseUrl}/`).toString();
+}
+
 export async function apiRequest(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
     headers: {
       'Content-Type': 'application/json'
     },

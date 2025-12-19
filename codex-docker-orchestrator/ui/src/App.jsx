@@ -6,14 +6,18 @@ import {
   CardContent,
   Chip,
   Divider,
+  IconButton,
   MenuItem,
   Stack,
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography
 } from '@mui/material';
-import { apiRequest } from './api.js';
+import StopCircleOutlinedIcon from '@mui/icons-material/StopCircleOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { apiRequest, apiUrl } from './api.js';
 
 const emptyEnvForm = { repoUrl: '', defaultBranch: 'main' };
 const emptyTaskForm = { envId: '', ref: '', prompt: '' };
@@ -131,7 +135,9 @@ function App() {
     if (logStreamRef.current) {
       logStreamRef.current.close();
     }
-    const eventSource = new EventSource(`/api/tasks/${selectedTaskId}/logs/stream?runId=${latestRun.runId}`);
+    const eventSource = new EventSource(
+      apiUrl(`/api/tasks/${selectedTaskId}/logs/stream?runId=${latestRun.runId}`)
+    );
     logStreamRef.current = eventSource;
     eventSource.onmessage = (event) => {
       try {
@@ -275,13 +281,15 @@ function App() {
     }
   }
 
-  async function handleStopTask() {
-    if (!selectedTaskId) return;
+  async function handleStopTask(taskId = selectedTaskId) {
+    if (!taskId) return;
     setError('');
     setLoading(true);
     try {
-      await apiRequest(`/api/tasks/${selectedTaskId}/stop`, { method: 'POST' });
-      await refreshTaskDetail(selectedTaskId);
+      await apiRequest(`/api/tasks/${taskId}/stop`, { method: 'POST' });
+      if (taskId === selectedTaskId) {
+        await refreshTaskDetail(taskId);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -480,10 +488,46 @@ function App() {
                                 <Stack spacing={0.5}>
                                   <Typography fontWeight={600}>{task.branchName}</Typography>
                                   <Typography color="text.secondary">{task.repoUrl}</Typography>
-                                  <Stack direction="row" spacing={1} alignItems="center">
-                                    <Chip size="small" label={formatStatus(task.status)} />
-                                    <Chip size="small" label={task.ref} />
-                                    <Chip size="small" label={`created ${formatTimestamp(task.createdAt)}`} />
+                                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                      <Chip size="small" label={formatStatus(task.status)} />
+                                      <Chip size="small" label={task.ref} />
+                                      <Chip size="small" label={`created ${formatTimestamp(task.createdAt)}`} />
+                                    </Stack>
+                                    <Stack direction="row" spacing={0.5} alignItems="center">
+                                      <Tooltip title="Stop task">
+                                        <span>
+                                          <IconButton
+                                            size="small"
+                                            color="error"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleStopTask(task.taskId);
+                                            }}
+                                            disabled={loading || task.status !== 'running'}
+                                            aria-label={`Stop task ${task.taskId}`}
+                                          >
+                                            <StopCircleOutlinedIcon fontSize="small" />
+                                          </IconButton>
+                                        </span>
+                                      </Tooltip>
+                                      <Tooltip title="Remove task">
+                                        <span>
+                                          <IconButton
+                                            size="small"
+                                            color="secondary"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleDeleteTask(task.taskId);
+                                            }}
+                                            disabled={loading}
+                                            aria-label={`Remove task ${task.taskId}`}
+                                          >
+                                            <DeleteOutlineIcon fontSize="small" />
+                                          </IconButton>
+                                        </span>
+                                      </Tooltip>
+                                    </Stack>
                                   </Stack>
                                 </Stack>
                               </CardContent>
@@ -587,24 +631,35 @@ function App() {
                               >
                                 Continue task
                               </Button>
-                              <Button
-                                variant="outlined"
-                                color="error"
-                                onClick={handleStopTask}
-                                disabled={loading || taskDetail.status !== 'running'}
-                              >
-                                Stop task
-                              </Button>
                               <Button variant="outlined" onClick={handlePushTask} disabled={loading}>
                                 Push + PR
                               </Button>
-                              <Button
-                                color="secondary"
-                                onClick={() => handleDeleteTask(taskDetail.taskId)}
-                                disabled={loading}
-                              >
-                                Remove task
-                              </Button>
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Tooltip title="Stop task">
+                                  <span>
+                                    <IconButton
+                                      color="error"
+                                      onClick={() => handleStopTask(taskDetail.taskId)}
+                                      disabled={loading || taskDetail.status !== 'running'}
+                                      aria-label="Stop task"
+                                    >
+                                      <StopCircleOutlinedIcon />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                                <Tooltip title="Remove task">
+                                  <span>
+                                    <IconButton
+                                      color="secondary"
+                                      onClick={() => handleDeleteTask(taskDetail.taskId)}
+                                      disabled={loading}
+                                      aria-label="Remove task"
+                                    >
+                                      <DeleteOutlineIcon />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              </Stack>
                             </Stack>
                           </Stack>
                         )}

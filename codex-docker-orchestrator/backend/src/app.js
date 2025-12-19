@@ -12,7 +12,13 @@ function asyncHandler(handler) {
 
 function createApp({ orchestrator = new Orchestrator() } = {}) {
   const app = express();
-  app.use(cors());
+  app.use(
+    cors({
+      origin: '*',
+      methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type']
+    })
+  );
   app.use(express.json({ limit: '2mb' }));
 
   app.get('/api/health', (req, res) => {

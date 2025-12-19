@@ -18,7 +18,12 @@ npm install
 npm run dev
 ```
 
-The UI expects the backend at `http://localhost:8080`.
+The UI expects the backend at `http://localhost:8080` by default. To point the UI at a different backend (for example, on your LAN), set `VITE_API_BASE_URL` when running the dev server:
+```
+VITE_API_BASE_URL=http://192.168.1.x:8080 npm run dev
+```
+
+You can also set the variable in a `.env` file in `ui/` (for example, `VITE_API_BASE_URL=http://192.168.1.x:8080`) or pass it at build time.
 
 ## Environment variables
 - `ORCH_HOME`: overrides the default storage path (`~/.codex-orchestrator`).
