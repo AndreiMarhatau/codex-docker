@@ -85,6 +85,12 @@ class Orchestrator {
     this.imageName = options.imageName || process.env.IMAGE_NAME || DEFAULT_IMAGE_NAME;
     this.orchAgentsFile =
       options.orchAgentsFile || process.env.ORCH_AGENTS_FILE || DEFAULT_ORCH_AGENTS_FILE;
+    this.getUid =
+      options.getUid ||
+      (() => (typeof process.getuid === 'function' ? process.getuid() : null));
+    this.getGid =
+      options.getGid ||
+      (() => (typeof process.getgid === 'function' ? process.getgid() : null));
     this.running = new Map();
   }
 
@@ -172,6 +178,45 @@ class Orchestrator {
       throw new Error(message.trim());
     }
     return result;
+  }
+
+  async ensureOwnership(targetPath) {
+    if (!(await pathExists(targetPath))) return;
+    const uid = this.getUid();
+    const gid = this.getGid();
+    if (uid === null || gid === null) return;
+    let stat;
+    try {
+      stat = await fsp.stat(targetPath);
+    } catch (error) {
+      return;
+    }
+    if (stat.uid === uid && stat.gid === gid) return;
+    const ownership = `${uid}:${gid}`;
+    if (uid === 0) {
+      try {
+        await this.exec('chown', ['-R', ownership, targetPath]);
+      } catch (error) {
+        // Best-effort: deletion can still proceed if chown fails.
+      }
+      return;
+    }
+    const containerTarget = '/target';
+    try {
+      await this.exec('docker', [
+        'run',
+        '--rm',
+        '-v',
+        `${targetPath}:${containerTarget}`,
+        '--entrypoint',
+        '/bin/sh',
+        this.imageName,
+        '-c',
+        `chown -R ${ownership} ${containerTarget}`
+      ]);
+    } catch (error) {
+      // Best-effort: deletion can still proceed if chown fails.
+    }
   }
 
   async readEnv(envId) {
@@ -565,6 +610,7 @@ class Orchestrator {
     const meta = await readJson(this.taskMetaPath(taskId));
     const env = await this.readEnv(meta.envId);
     const worktreePath = meta.worktreePath;
+    await this.ensureOwnership(worktreePath);
     const result = await this.exec('git', [
       '--git-dir',
       env.mirrorPath,
