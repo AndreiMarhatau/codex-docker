@@ -14,12 +14,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Detect docker-related changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            docker:
+              - "Dockerfile"
+              - "package.json"
+              - "package-lock.json"
+              - "DOCKER_AGENTS.md"
+              - ".github/workflows/pr-check.yml"
+
       - name: Validate lockfile
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
+        if: steps.changes.outputs.docker == 'true'
       - name: npm ci (no scripts)
         run: npm ci --ignore-scripts
+        if: steps.changes.outputs.docker == 'true'
 
       - name: Free disk space for large base image
         run: |
@@ -27,9 +41,11 @@ jobs:
           docker system prune -af --volumes || true
           echo "Free space after cleanup:"
           df -h
+        if: steps.changes.outputs.docker == 'true'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        if: steps.changes.outputs.docker == 'true'
 
       - name: Build image (amd64, smoke test target)
         uses: docker/build-push-action@v5
@@ -42,3 +58,8 @@ jobs:
           outputs: type=cacheonly
           cache-from: type=gha,scope=codex-docker-pr
           cache-to: type=gha,mode=max,scope=codex-docker-pr
+        if: steps.changes.outputs.docker == 'true'
+
+      - name: Skip message
+        if: steps.changes.outputs.docker != 'true'
+        run: echo "No docker-related changes; skipping build and smoke test."
