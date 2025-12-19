@@ -7,6 +7,16 @@ import { createMockExec, createTempDir } from './helpers.mjs';
 const require = createRequire(import.meta.url);
 const { Orchestrator, parseThreadId } = require('../src/orchestrator');
 
+async function waitForTaskStatus(orchestrator, taskId, status) {
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
+    const task = await orchestrator.getTask(taskId);
+    if (task.status === status) return task;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Timed out waiting for status ${status}`);
+}
+
 describe('parseThreadId', () => {
   it('extracts thread_id from JSONL', () => {
     const jsonl = '{"type":"thread.started","thread_id":"abc"}\n{"type":"item.completed"}';
@@ -29,11 +39,18 @@ describe('Orchestrator', () => {
     expect(env.repoUrl).toBe('git@example.com:repo.git');
 
     const task = await orchestrator.createTask({ envId: env.envId, ref: 'main', prompt: 'Do work' });
-    expect(task.threadId).toBe(exec.threadId);
+    expect(task.status).toBe('running');
     expect(task.branchName).toContain('codex/');
 
+    const completed = await waitForTaskStatus(orchestrator, task.taskId, 'completed');
+    expect(completed.threadId).toBe(exec.threadId);
+    expect(completed.initialPrompt).toBe('Do work');
+
     const resumed = await orchestrator.resumeTask(task.taskId, 'Continue');
+    expect(resumed.status).toBe('running');
+    const resumedCompleted = await waitForTaskStatus(orchestrator, task.taskId, 'completed');
     expect(resumed.runs).toHaveLength(2);
+    expect(resumedCompleted.lastPrompt).toBe('Continue');
 
     const metaPath = path.join(orchHome, 'tasks', task.taskId, 'meta.json');
     const meta = JSON.parse(await fs.readFile(metaPath, 'utf8'));

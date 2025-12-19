@@ -35,6 +35,28 @@ function nextRunLabel(runCount) {
   return `run-${String(runCount).padStart(3, '0')}`;
 }
 
+function safeJsonParse(line) {
+  try {
+    return JSON.parse(line);
+  } catch (error) {
+    return null;
+  }
+}
+
+function parseLogEntries(content) {
+  if (!content) return [];
+  const lines = content.split(/\r?\n/).filter(Boolean);
+  return lines.map((line, index) => {
+    const parsed = safeJsonParse(line);
+    return {
+      id: `log-${index + 1}`,
+      type: parsed && parsed.type ? parsed.type : 'text',
+      raw: line,
+      parsed
+    };
+  });
+}
+
 class Orchestrator {
   constructor(options = {}) {
     this.orchHome = options.orchHome || process.env.ORCH_HOME || DEFAULT_ORCH_HOME;
@@ -169,7 +191,8 @@ class Orchestrator {
   async getTask(taskId) {
     const meta = await readJson(this.taskMetaPath(taskId));
     const logTail = await this.readLogTail(taskId);
-    return { ...meta, logTail };
+    const runLogs = await this.readRunLogs(taskId);
+    return { ...meta, logTail, runLogs };
   }
 
   async readLogTail(taskId) {
@@ -184,6 +207,65 @@ class Orchestrator {
     } catch (error) {
       return '';
     }
+  }
+
+  async readRunLogs(taskId) {
+    const meta = await readJson(this.taskMetaPath(taskId));
+    const runs = [];
+    for (const run of meta.runs || []) {
+      const logPath = path.join(this.taskLogsDir(taskId), run.logFile);
+      let content = '';
+      try {
+        content = await fs.readFile(logPath, 'utf8');
+      } catch (error) {
+        content = '';
+      }
+      runs.push({
+        runId: run.runId,
+        status: run.status,
+        startedAt: run.startedAt,
+        finishedAt: run.finishedAt || null,
+        prompt: run.prompt,
+        logFile: run.logFile,
+        entries: parseLogEntries(content)
+      });
+    }
+    return runs;
+  }
+
+  async finalizeRun(taskId, runLabel, result, prompt) {
+    const meta = await readJson(this.taskMetaPath(taskId));
+    const logFile = `${runLabel}.jsonl`;
+    const logPath = path.join(this.taskLogsDir(taskId), logFile);
+
+    await fs.writeFile(logPath, result.stdout || '');
+    if (result.stderr) {
+      await fs.writeFile(path.join(this.taskLogsDir(taskId), `${runLabel}.stderr`), result.stderr);
+    }
+
+    const combinedOutput = [result.stdout, result.stderr].filter(Boolean).join('\n');
+    const threadId = parseThreadId(combinedOutput);
+    const resolvedThreadId = threadId || meta.threadId || null;
+    const success = result.code === 0 && !!resolvedThreadId;
+    const now = this.now();
+
+    meta.threadId = resolvedThreadId;
+    meta.error = success ? null : 'Unable to parse thread_id from codex output.';
+    meta.status = success ? 'completed' : 'failed';
+    meta.updatedAt = now;
+    meta.lastPrompt = prompt || meta.lastPrompt || null;
+
+    const runIndex = meta.runs.findIndex((run) => run.runId === runLabel);
+    if (runIndex !== -1) {
+      meta.runs[runIndex] = {
+        ...meta.runs[runIndex],
+        finishedAt: now,
+        status: success ? 'completed' : 'failed',
+        exitCode: result.code
+      };
+    }
+
+    await writeJson(this.taskMetaPath(taskId), meta);
   }
 
   async createTask({ envId, ref, prompt }) {
@@ -206,18 +288,7 @@ class Orchestrator {
 
     const runLabel = nextRunLabel(1);
     const logFile = `${runLabel}.jsonl`;
-    const logPath = path.join(logsDir, logFile);
-
-    const result = await this.exec('codex-docker', ['exec', '--json', prompt], { cwd: worktreePath });
-    await fs.writeFile(logPath, result.stdout);
-    if (result.stderr) {
-      await fs.writeFile(path.join(logsDir, `${runLabel}.stderr`), result.stderr);
-    }
-
-    const combinedOutput = [result.stdout, result.stderr].filter(Boolean).join('\n');
-    const threadId = parseThreadId(combinedOutput);
-
-    const success = result.code === 0 && !!threadId;
+    const now = this.now();
     const meta = {
       taskId,
       envId,
@@ -225,24 +296,37 @@ class Orchestrator {
       ref: targetRef,
       branchName,
       worktreePath,
-      threadId: threadId || null,
-      error: threadId ? null : 'Unable to parse thread_id from codex output.',
-      status: success ? 'completed' : 'failed',
-      createdAt: this.now(),
-      updatedAt: this.now(),
+      threadId: null,
+      error: null,
+      status: 'running',
+      initialPrompt: prompt,
+      lastPrompt: prompt,
+      createdAt: now,
+      updatedAt: now,
       runs: [
         {
           runId: runLabel,
           prompt,
           logFile,
-          startedAt: this.now(),
-          finishedAt: this.now(),
-          status: success ? 'completed' : 'failed'
+          startedAt: now,
+          finishedAt: null,
+          status: 'running',
+          exitCode: null
         }
       ]
     };
 
     await writeJson(this.taskMetaPath(taskId), meta);
+    this.exec(
+      'codex-docker',
+      ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', prompt],
+      { cwd: worktreePath }
+    )
+      .then((result) => this.finalizeRun(taskId, runLabel, result, prompt))
+      .catch(async (error) => {
+        const result = { stdout: '', stderr: error?.message || String(error), code: 1 };
+        await this.finalizeRun(taskId, runLabel, result, prompt);
+      });
     return meta;
   }
 
@@ -255,31 +339,30 @@ class Orchestrator {
     const runsCount = meta.runs.length + 1;
     const runLabel = nextRunLabel(runsCount);
     const logFile = `${runLabel}.jsonl`;
-    const logPath = path.join(this.taskLogsDir(taskId), logFile);
-
-    const result = await this.exec(
-      'codex-docker',
-      ['exec', '--json', 'resume', meta.threadId, prompt],
-      { cwd: meta.worktreePath }
-    );
-
-    await fs.writeFile(logPath, result.stdout);
-    if (result.stderr) {
-      await fs.writeFile(path.join(this.taskLogsDir(taskId), `${runLabel}.stderr`), result.stderr);
-    }
-
     meta.updatedAt = this.now();
-    meta.status = result.code === 0 ? 'completed' : 'failed';
+    meta.status = 'running';
+    meta.lastPrompt = prompt;
     meta.runs.push({
       runId: runLabel,
       prompt,
       logFile,
       startedAt: this.now(),
-      finishedAt: this.now(),
-      status: result.code === 0 ? 'completed' : 'failed'
+      finishedAt: null,
+      status: 'running',
+      exitCode: null
     });
 
     await writeJson(this.taskMetaPath(taskId), meta);
+    this.exec(
+      'codex-docker',
+      ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', 'resume', meta.threadId, prompt],
+      { cwd: meta.worktreePath }
+    )
+      .then((result) => this.finalizeRun(taskId, runLabel, result, prompt))
+      .catch(async (error) => {
+        const result = { stdout: '', stderr: error?.message || String(error), code: 1 };
+        await this.finalizeRun(taskId, runLabel, result, prompt);
+      });
     return meta;
   }
 

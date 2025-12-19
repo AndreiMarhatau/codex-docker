@@ -30,6 +30,18 @@ function formatTimestamp(value) {
   return date.toLocaleString();
 }
 
+function formatLogEntry(entry) {
+  if (!entry) return '';
+  if (entry.parsed) {
+    try {
+      return JSON.stringify(entry.parsed, null, 2);
+    } catch (error) {
+      return entry.raw || '';
+    }
+  }
+  return entry.raw || '';
+}
+
 function App() {
   const [envs, setEnvs] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -439,10 +451,47 @@ function App() {
                         <Chip label={`thread: ${taskDetail.threadId}`} size="small" />
                       </Stack>
                       <Divider />
-                      <Typography variant="subtitle2">Latest logs</Typography>
-                      <Box className="log-box">
-                        {taskDetail.logTail || 'No logs yet.'}
-                      </Box>
+                      <Stack spacing={1}>
+                        <Typography variant="subtitle2">Prompts</Typography>
+                        <Typography color="text.secondary">
+                          Initial: {taskDetail.initialPrompt || taskDetail.runs?.[0]?.prompt || 'unknown'}
+                        </Typography>
+                        <Typography color="text.secondary">
+                          Latest: {taskDetail.lastPrompt || taskDetail.runs?.[taskDetail.runs?.length - 1]?.prompt || 'unknown'}
+                        </Typography>
+                      </Stack>
+                      <Divider />
+                      <Typography variant="subtitle2">Logs</Typography>
+                      <Stack spacing={1}>
+                        {(taskDetail.runLogs || []).map((run) => (
+                          <Box key={run.runId} component="details" className="log-run">
+                            <summary className="log-summary">
+                              <span>{run.runId}</span>
+                              <span className="log-meta">
+                                {formatStatus(run.status)} • {formatTimestamp(run.startedAt)}
+                              </span>
+                            </summary>
+                            <Stack spacing={1} sx={{ mt: 1 }}>
+                              {run.entries.length === 0 && (
+                                <Typography color="text.secondary">No logs yet.</Typography>
+                              )}
+                              {run.entries.map((entry) => (
+                                <Box key={`${run.runId}-${entry.id}`} component="details" className="log-entry">
+                                  <summary className="log-summary">
+                                    <span className="mono">{entry.type}</span>
+                                  </summary>
+                                  <Box className="log-box">
+                                    <pre>{formatLogEntry(entry)}</pre>
+                                  </Box>
+                                </Box>
+                              ))}
+                            </Stack>
+                          </Box>
+                        ))}
+                        {(taskDetail.runLogs || []).length === 0 && (
+                          <Typography color="text.secondary">No logs yet.</Typography>
+                        )}
+                      </Stack>
                       <TextField
                         label="Resume prompt"
                         fullWidth
