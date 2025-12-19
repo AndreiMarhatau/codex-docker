@@ -8,7 +8,9 @@ export async function apiRequest(path, options = {}) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || `Request failed: ${response.status}`);
+    const error = new Error(errorText || `Request failed: ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
 
   if (response.status === 204) {

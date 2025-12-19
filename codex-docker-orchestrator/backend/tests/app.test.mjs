@@ -36,4 +36,9 @@ describe('API', () => {
     const listRes = await request(app).get('/api/tasks').expect(200);
     expect(listRes.body).toHaveLength(1);
   });
+
+  it('returns 404 for missing task', async () => {
+    const { app } = await createTestApp();
+    await request(app).get('/api/tasks/missing').expect(404);
+  });
 });

@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 
 export function createMockExec({ branches = ['main'] } = {}) {
   const calls = [];
@@ -60,6 +61,6 @@ export function createMockExec({ branches = ['main'] } = {}) {
 }
 
 export async function createTempDir() {
-  const base = await fs.mkdtemp(path.join(process.cwd(), 'tmp-orch-'));
+  const base = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-orch-'));
   return base;
 }

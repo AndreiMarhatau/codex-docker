@@ -57,8 +57,17 @@ function App() {
 
   async function refreshTaskDetail(taskId) {
     if (!taskId) return;
-    const detail = await apiRequest(`/api/tasks/${taskId}`);
-    setTaskDetail(detail);
+    try {
+      const detail = await apiRequest(`/api/tasks/${taskId}`);
+      setTaskDetail(detail);
+    } catch (err) {
+      if (err.status === 404) {
+        setSelectedTaskId('');
+        setTaskDetail(null);
+        return;
+      }
+      throw err;
+    }
   }
 
   useEffect(() => {
@@ -160,6 +169,11 @@ function App() {
       await apiRequest(`/api/envs/${envId}`, { method: 'DELETE' });
       if (envId === selectedEnvId) {
         setSelectedEnvId('');
+      }
+      const selectedTask = tasks.find((task) => task.taskId === selectedTaskId);
+      if (selectedTask && selectedTask.envId === envId) {
+        setSelectedTaskId('');
+        setTaskDetail(null);
       }
       await refreshAll();
     } catch (err) {
