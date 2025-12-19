@@ -185,13 +185,6 @@ class Orchestrator {
     const uid = this.getUid();
     const gid = this.getGid();
     if (uid === null || gid === null) return;
-    let stat;
-    try {
-      stat = await fsp.stat(targetPath);
-    } catch (error) {
-      return;
-    }
-    if (stat.uid === uid && stat.gid === gid) return;
     const ownership = `${uid}:${gid}`;
     if (uid === 0) {
       try {
@@ -611,6 +604,7 @@ class Orchestrator {
     const env = await this.readEnv(meta.envId);
     const worktreePath = meta.worktreePath;
     await this.ensureOwnership(worktreePath);
+    await this.ensureOwnership(this.taskDir(taskId));
     const result = await this.exec('git', [
       '--git-dir',
       env.mirrorPath,

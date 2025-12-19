@@ -82,8 +82,8 @@ describe('Orchestrator', () => {
     await waitForTaskStatus(orchestrator, task.taskId, 'completed');
 
     const stat = await fs.stat(task.worktreePath);
-    fakeUid = stat.uid + 1;
-    fakeGid = stat.gid + 1;
+    fakeUid = stat.uid === 0 ? 1000 : stat.uid;
+    fakeGid = stat.gid === 0 ? 1000 : stat.gid;
 
     await orchestrator.deleteTask(task.taskId);
 
