@@ -72,6 +72,9 @@ export function createMockExec({
       if (args[0] === 'pull') {
         return { stdout: 'pulled', stderr: '', code: 0 };
       }
+      if (args[0] === 'run') {
+        return { stdout: '', stderr: '', code: 0 };
+      }
     }
 
     return { stdout: '', stderr: 'unknown command', code: 1 };

@@ -62,4 +62,34 @@ describe('Orchestrator', () => {
     const meta = JSON.parse(await fs.readFile(metaPath, 'utf8'));
     expect(meta.runs).toHaveLength(2);
   });
+
+  it('attempts to fix ownership before deleting a task', async () => {
+    const orchHome = await createTempDir();
+    const exec = createMockExec({ branches: ['main'] });
+    const spawn = createMockSpawn();
+    let fakeUid = null;
+    let fakeGid = null;
+    const orchestrator = new Orchestrator({
+      orchHome,
+      exec,
+      spawn,
+      getUid: () => fakeUid,
+      getGid: () => fakeGid
+    });
+
+    const env = await orchestrator.createEnv({ repoUrl: 'git@example.com:repo.git', defaultBranch: 'main' });
+    const task = await orchestrator.createTask({ envId: env.envId, ref: 'main', prompt: 'Do work' });
+    await waitForTaskStatus(orchestrator, task.taskId, 'completed');
+
+    const stat = await fs.stat(task.worktreePath);
+    fakeUid = stat.uid === 0 ? 1000 : stat.uid;
+    fakeGid = stat.gid === 0 ? 1000 : stat.gid;
+
+    await orchestrator.deleteTask(task.taskId);
+
+    const dockerChownCall = exec.calls.find(
+      ({ command, args }) => command === 'docker' && args[0] === 'run' && args.some((arg) => arg.includes('chown -R'))
+    );
+    expect(dockerChownCall).toBeTruthy();
+  });
 });
