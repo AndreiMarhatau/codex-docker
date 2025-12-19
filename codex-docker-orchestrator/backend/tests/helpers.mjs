@@ -41,7 +41,7 @@ export function createMockExec({ branches = ['main'] } = {}) {
         await fs.rm(worktreePath, { recursive: true, force: true });
         return { stdout: '', stderr: '', code: 0 };
       }
-      if (args[0] === '-C' && args[2] === 'push') {
+      if (args[0] === '-C' && args.includes('push')) {
         return { stdout: '', stderr: '', code: 0 };
       }
     }

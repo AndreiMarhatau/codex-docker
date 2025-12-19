@@ -477,7 +477,15 @@ class Orchestrator {
 
   async pushTask(taskId) {
     const meta = await readJson(this.taskMetaPath(taskId));
-    await this.execOrThrow('git', ['-C', meta.worktreePath, 'push', 'origin', meta.branchName]);
+    await this.execOrThrow('git', [
+      '-C',
+      meta.worktreePath,
+      '-c',
+      'remote.origin.mirror=false',
+      'push',
+      'origin',
+      meta.branchName
+    ]);
 
     const githubToken = process.env.ORCH_GITHUB_TOKEN;
     const githubRepo = process.env.ORCH_GITHUB_REPO;
