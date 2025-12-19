@@ -564,7 +564,29 @@ class Orchestrator {
     await this.init();
     const meta = await readJson(this.taskMetaPath(taskId));
     const env = await this.readEnv(meta.envId);
-    await this.execOrThrow('git', ['--git-dir', env.mirrorPath, 'worktree', 'remove', '--force', meta.worktreePath]);
+    const worktreePath = meta.worktreePath;
+    const result = await this.exec('git', [
+      '--git-dir',
+      env.mirrorPath,
+      'worktree',
+      'remove',
+      '--force',
+      worktreePath
+    ]);
+    if (result.code !== 0) {
+      const message = (result.stderr || result.stdout || '').trim();
+      const ignorable =
+        message.includes('not a working tree') ||
+        message.includes('does not exist') ||
+        message.includes('No such file or directory');
+      if (!ignorable) {
+        throw new Error(message || 'Failed to remove worktree');
+      }
+    }
+    if (await pathExists(worktreePath)) {
+      await removePath(worktreePath);
+    }
+    await this.exec('git', ['--git-dir', env.mirrorPath, 'worktree', 'prune', '--expire', 'now']);
     await removePath(this.taskDir(taskId));
   }
 
