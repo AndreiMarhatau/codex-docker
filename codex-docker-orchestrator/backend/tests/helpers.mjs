@@ -8,7 +8,8 @@ export function createMockExec({
   branches = ['main'],
   dockerImageExists = true,
   dockerImageId = 'sha256:mock-image',
-  dockerCreatedAt = '2025-12-18T12:34:56.000Z'
+  dockerCreatedAt = '2025-12-18T12:34:56.000Z',
+  baseSha = 'deadbeef1234567890'
 } = {}) {
   const calls = [];
   const threadId = '019b341f-04d9-73b3-8263-2c05ca63d690';
@@ -36,6 +37,9 @@ export function createMockExec({
       if (args[0] === '--git-dir' && args[2] === 'fetch') {
         return { stdout: '', stderr: '', code: 0 };
       }
+      if (args[0] === '--git-dir' && args[2] === 'rev-parse') {
+        return { stdout: `${baseSha}\n`, stderr: '', code: 0 };
+      }
       if (args[0] === '--git-dir' && args[2] === 'worktree' && args[3] === 'add') {
         const worktreePath = args[4];
         await fs.mkdir(worktreePath, { recursive: true });
@@ -43,6 +47,19 @@ export function createMockExec({
       }
       if (args[0] === '-C' && args[2] === 'checkout') {
         return { stdout: '', stderr: '', code: 0 };
+      }
+      if (args[0] === '-C' && args[2] === 'diff') {
+        const diff = [
+          'diff --git a/README.md b/README.md',
+          'index 0000000..1111111 100644',
+          '--- a/README.md',
+          '+++ b/README.md',
+          '@@ -1 +1,2 @@',
+          '-Old line',
+          '+New line',
+          '+Another line'
+        ].join('\n');
+        return { stdout: diff, stderr: '', code: 0 };
       }
       if (args[0] === '--git-dir' && args[2] === 'worktree' && args[3] === 'remove') {
         const worktreePath = args[5];

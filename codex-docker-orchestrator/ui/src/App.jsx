@@ -80,6 +80,8 @@ function App() {
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [resumePrompt, setResumePrompt] = useState('');
   const [taskDetail, setTaskDetail] = useState(null);
+  const [taskDiff, setTaskDiff] = useState(null);
+  const [revealedDiffs, setRevealedDiffs] = useState({});
   const [imageInfo, setImageInfo] = useState(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageUpdating, setImageUpdating] = useState(false);
@@ -87,6 +89,10 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
   const logStreamRef = useRef(null);
+
+  const revealDiff = (path) => {
+    setRevealedDiffs((prev) => ({ ...prev, [path]: true }));
+  };
 
   const selectedEnv = useMemo(
     () => envs.find((env) => env.envId === selectedEnvId),
@@ -116,11 +122,21 @@ function App() {
     if (!taskId) return;
     try {
       const detail = await apiRequest(`/api/tasks/${taskId}`);
+      let diff = null;
+      try {
+        diff = await apiRequest(`/api/tasks/${taskId}/diff`);
+      } catch (diffError) {
+        if (diffError.status !== 404) {
+          throw diffError;
+        }
+      }
       setTaskDetail(detail);
+      setTaskDiff(diff);
     } catch (err) {
       if (err.status === 404) {
         setSelectedTaskId('');
         setTaskDetail(null);
+        setTaskDiff(null);
         return;
       }
       throw err;
@@ -161,6 +177,8 @@ function App() {
   useEffect(() => {
     if (!selectedTaskId) {
       setTaskDetail(null);
+      setTaskDiff(null);
+      setRevealedDiffs({});
       return;
     }
     refreshTaskDetail(selectedTaskId).catch((err) => setError(err.message));
@@ -632,6 +650,69 @@ function App() {
                               <Chip label={`ref: ${taskDetail.ref}`} size="small" />
                               <Chip label={`thread: ${taskDetail.threadId || 'pending'}`} size="small" />
                             </Stack>
+                            <Divider />
+                            <Box component="details" className="log-entry">
+                              <summary className="log-summary">
+                                <span>Diff</span>
+                                <span className="log-meta">
+                                  {taskDiff
+                                    ? taskDiff.available
+                                      ? `${taskDiff.files.length} files`
+                                      : 'Unavailable'
+                                    : 'Loading'}
+                                </span>
+                              </summary>
+                              <Stack spacing={1} sx={{ mt: 1 }}>
+                                {!taskDiff && (
+                                  <Typography color="text.secondary">Loading diff...</Typography>
+                                )}
+                                {taskDiff && !taskDiff.available && (
+                                  <Typography color="text.secondary">
+                                    {`Diff unavailable: ${taskDiff.reason || 'unknown error'}`}
+                                  </Typography>
+                                )}
+                                {taskDiff && taskDiff.available && taskDiff.baseSha && (
+                                  <Typography className="mono" color="text.secondary">
+                                    {`Base commit: ${taskDiff.baseSha}`}
+                                  </Typography>
+                                )}
+                                {taskDiff && taskDiff.available && taskDiff.files.length === 0 && (
+                                  <Typography color="text.secondary">No changes yet.</Typography>
+                                )}
+                                {taskDiff && taskDiff.available && taskDiff.files.length > 0 && (
+                                  <Stack spacing={1}>
+                                    {taskDiff.files.map((file) => (
+                                      <Box key={file.path} component="details" className="diff-file">
+                                        <summary className="log-summary">
+                                          <span className="mono">{file.path}</span>
+                                          <span className="log-meta">{`${file.lineCount} lines`}</span>
+                                        </summary>
+                                        <Box sx={{ mt: 1 }}>
+                                          {file.tooLarge && !revealedDiffs[file.path] ? (
+                                            <Stack direction="row" spacing={1} alignItems="center">
+                                              <Typography color="text.secondary">
+                                                {`Large diff (${file.lineCount} lines).`}
+                                              </Typography>
+                                              <Button
+                                                size="small"
+                                                variant="outlined"
+                                                onClick={() => revealDiff(file.path)}
+                                              >
+                                                Show diff
+                                              </Button>
+                                            </Stack>
+                                          ) : (
+                                            <Box className="log-box diff-box">
+                                              <pre>{file.diff}</pre>
+                                            </Box>
+                                          )}
+                                        </Box>
+                                      </Box>
+                                    ))}
+                                  </Stack>
+                                )}
+                              </Stack>
+                            </Box>
                             <Divider />
                             <Typography variant="subtitle2">Logs</Typography>
                             <Stack spacing={1}>
