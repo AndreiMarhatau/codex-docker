@@ -17,6 +17,7 @@ const {
 } = require('./storage');
 
 const DEFAULT_ORCH_HOME = path.join(os.homedir(), '.codex-orchestrator');
+const DEFAULT_IMAGE_NAME = 'ghcr.io/andreimarhatau/codex-docker:latest';
 
 function parseThreadId(jsonl) {
   const lines = jsonl.split(/\r?\n/).filter(Boolean);
@@ -66,6 +67,7 @@ class Orchestrator {
     this.spawn = options.spawn || spawn;
     this.now = options.now || (() => new Date().toISOString());
     this.fetch = options.fetch || global.fetch;
+    this.imageName = options.imageName || process.env.IMAGE_NAME || DEFAULT_IMAGE_NAME;
     this.running = new Map();
   }
 
@@ -112,6 +114,38 @@ class Orchestrator {
   async init() {
     await ensureDir(this.envsDir());
     await ensureDir(this.tasksDir());
+  }
+
+  async getImageInfo() {
+    const imageName = this.imageName;
+    const result = await this.exec('docker', [
+      'image',
+      'inspect',
+      '--format',
+      '{{.Id}}|{{.Created}}',
+      imageName
+    ]);
+    if (result.code !== 0) {
+      return {
+        imageName,
+        present: false,
+        imageId: null,
+        imageCreatedAt: null
+      };
+    }
+    const output = result.stdout.trim();
+    const [imageId, imageCreatedAt] = output.split('|');
+    return {
+      imageName,
+      present: true,
+      imageId: imageId || null,
+      imageCreatedAt: imageCreatedAt || null
+    };
+  }
+
+  async pullImage() {
+    await this.execOrThrow('docker', ['pull', this.imageName]);
+    return this.getImageInfo();
   }
 
   async execOrThrow(command, args, options) {

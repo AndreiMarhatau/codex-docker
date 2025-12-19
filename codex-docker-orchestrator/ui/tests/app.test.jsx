@@ -7,4 +7,5 @@ it('renders the orchestrator header and forms', async () => {
   expect(await screen.findByText('Codex Docker Orchestrator')).toBeInTheDocument();
   expect(screen.getAllByText('Repo Environments').length).toBeGreaterThan(0);
   expect(screen.getByText('Create Task')).toBeInTheDocument();
+  expect(screen.getByText('Settings')).toBeInTheDocument();
 });
