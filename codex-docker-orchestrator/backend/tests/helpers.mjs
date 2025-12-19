@@ -46,7 +46,7 @@ export function createMockExec({ branches = ['main'] } = {}) {
 
     if (command === 'codex-docker') {
       const isResume = args[2] === 'resume';
-      const stdout = JSON.stringify({ type: 'thread.started', thread_id: threadId }) + '\n' +
+      const stdout = 'banner line\n' + JSON.stringify({ type: 'thread.started', thread_id: threadId }) + '\n' +
         JSON.stringify({ type: 'item.completed', item: { id: 'item_1', type: 'agent_message', text: isResume ? 'RESUME' : 'OK' } });
       return { stdout, stderr: '', code: 0 };
     }

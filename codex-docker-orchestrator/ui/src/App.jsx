@@ -21,6 +21,13 @@ function formatStatus(status) {
   return status.replace('_', ' ');
 }
 
+function formatTimestamp(value) {
+  if (!value) return 'unknown';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
 function App() {
   const [envs, setEnvs] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -357,6 +364,7 @@ function App() {
                           <Stack direction="row" spacing={1} alignItems="center">
                             <Chip size="small" label={formatStatus(task.status)} />
                             <Chip size="small" label={task.ref} />
+                            <Chip size="small" label={`created ${formatTimestamp(task.createdAt)}`} />
                           </Stack>
                         </Stack>
                       </CardContent>

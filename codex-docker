@@ -46,7 +46,13 @@ fi
 echo "To open another terminal inside this container along with codex, run:"
 printf "  ${color}docker exec -it %s /bin/bash${reset}\n" "${CONTAINER_NAME}"
 
-docker run --rm -it \
+tty_flag=""
+if [[ -t 0 && -t 1 ]]; then
+  tty_flag="-t"
+fi
+
+docker run --rm -i \
+  ${tty_flag} \
   --name "${CONTAINER_NAME}" \
   -v "${PWD}:${container_workspace}" \
   -w "${container_workspace}" \

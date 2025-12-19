@@ -162,7 +162,7 @@ class Orchestrator {
       const meta = await readJson(metaPath);
       tasks.push(meta);
     }
-    tasks.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    tasks.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     return tasks;
   }
 
@@ -214,7 +214,8 @@ class Orchestrator {
       await fs.writeFile(path.join(logsDir, `${runLabel}.stderr`), result.stderr);
     }
 
-    const threadId = parseThreadId(result.stdout);
+    const combinedOutput = [result.stdout, result.stderr].filter(Boolean).join('\n');
+    const threadId = parseThreadId(combinedOutput);
 
     const success = result.code === 0 && !!threadId;
     const meta = {
