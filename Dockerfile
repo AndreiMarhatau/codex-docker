@@ -7,18 +7,17 @@ COPY package.json package-lock.json ./
 RUN mkdir -p /root/.codex
 COPY DOCKER_AGENTS.md /root/.codex/AGENTS.override.md
 
-# Install the pinned Codex CLI globally using the default nvm Node.
+# Install the pinned Codex CLI globally and make node available outside /root for non-root users.
 RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
   && npm ci --ignore-scripts \
   && CODEX_VER=$(node -p "require(\"./package.json\").dependencies[\"@openai/codex\"]") \
+  && npm config set prefix /usr/local \
   && npm install -g "@openai/codex@${CODEX_VER}" \
+  && npm config delete prefix \
+  && NODE_BIN="$(nvm which default)" \
+  && cp "${NODE_BIN}" /usr/local/bin/node \
+  && chmod 0755 /usr/local/bin/node \
   && rm -rf node_modules'
-
-# Symlink codex and node into /usr/local/bin so they're always on PATH at runtime.
-RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
-  && BIN_DIR="$(dirname "$(nvm which default)")" \
-  && ln -sf "${BIN_DIR}/codex" /usr/local/bin/codex \
-  && ln -sf "${BIN_DIR}/node" /usr/local/bin/node'
 
 # Provide a convenient helper to run the required uncommitted-changes review inside the container.
 RUN cat <<'EOF' >/usr/local/bin/codex-review \

@@ -120,6 +120,38 @@ class Orchestrator {
     return path.join(this.taskDir(taskId), 'logs');
   }
 
+  hostUserIds() {
+    if (typeof process.getuid !== 'function' || typeof process.getgid !== 'function') {
+      return null;
+    }
+    return { uid: process.getuid(), gid: process.getgid() };
+  }
+
+  async ensureOwnedByHost(targetPath) {
+    const ids = this.hostUserIds();
+    if (!ids) return;
+    if (!(await pathExists(targetPath))) return;
+    const resolvedPath = path.resolve(targetPath);
+    const result = await this.exec('docker', [
+      'run',
+      '--rm',
+      '--user',
+      '0:0',
+      '-v',
+      `${resolvedPath}:/target`,
+      '--entrypoint',
+      'chown',
+      this.imageName,
+      '-R',
+      `${ids.uid}:${ids.gid}`,
+      '/target'
+    ]);
+    if (result.code !== 0) {
+      const message = (result.stderr || result.stdout || '').trim();
+      console.warn(`Failed to repair ownership for ${resolvedPath}: ${message || 'unknown error'}`);
+    }
+  }
+
   envRepoUrlPath(envId) {
     return path.join(this.envDir(envId), 'repo.url');
   }
@@ -339,6 +371,7 @@ class Orchestrator {
     }
 
     await writeJson(this.taskMetaPath(taskId), meta);
+    await this.ensureOwnedByHost(meta.worktreePath);
   }
 
   startCodexRun({ taskId, runLabel, prompt, cwd, args }) {
@@ -565,6 +598,7 @@ class Orchestrator {
     const meta = await readJson(this.taskMetaPath(taskId));
     const env = await this.readEnv(meta.envId);
     const worktreePath = meta.worktreePath;
+    await this.ensureOwnedByHost(worktreePath);
     const result = await this.exec('git', [
       '--git-dir',
       env.mirrorPath,
@@ -584,9 +618,11 @@ class Orchestrator {
       }
     }
     if (await pathExists(worktreePath)) {
+      await this.ensureOwnedByHost(worktreePath);
       await removePath(worktreePath);
     }
     await this.exec('git', ['--git-dir', env.mirrorPath, 'worktree', 'prune', '--expire', 'now']);
+    await this.ensureOwnedByHost(this.taskDir(taskId));
     await removePath(this.taskDir(taskId));
   }
 

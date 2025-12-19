@@ -63,6 +63,9 @@ export function createMockExec({
     }
 
     if (command === 'docker') {
+      if (args[0] === 'run') {
+        return { stdout: '', stderr: '', code: 0 };
+      }
       if (args[0] === 'image' && args[1] === 'inspect') {
         if (!dockerImageExists) {
           return { stdout: '', stderr: 'No such image', code: 1 };
