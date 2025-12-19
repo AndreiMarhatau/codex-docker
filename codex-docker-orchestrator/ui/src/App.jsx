@@ -46,6 +46,31 @@ function formatLogEntry(entry) {
   return entry.raw || '';
 }
 
+function formatLogSummary(entry) {
+  if (!entry) return '';
+  const summary = entry.type || '';
+  if (
+    (entry.type === 'item.started' || entry.type === 'item.completed') &&
+    entry.parsed?.item?.type
+  ) {
+    return `${summary} • ${entry.parsed.item.type}`;
+  }
+  return summary;
+}
+
+function collectAgentMessages(entries) {
+  if (!entries || entries.length === 0) return '';
+  return entries
+    .filter(
+      (entry) =>
+        entry.parsed?.type === 'item.completed' &&
+        entry.parsed?.item?.type === 'agent_message' &&
+        entry.parsed?.item?.text
+    )
+    .map((entry) => entry.parsed.item.text)
+    .join('\n');
+}
+
 function App() {
   const [envs, setEnvs] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -608,43 +633,55 @@ function App() {
                               <Chip label={`thread: ${taskDetail.threadId || 'pending'}`} size="small" />
                             </Stack>
                             <Divider />
-                            <Stack spacing={1}>
-                              <Typography variant="subtitle2">Prompts</Typography>
-                              <Typography color="text.secondary">
-                                Initial: {taskDetail.initialPrompt || taskDetail.runs?.[0]?.prompt || 'unknown'}
-                              </Typography>
-                              <Typography color="text.secondary">
-                                Latest: {taskDetail.lastPrompt || taskDetail.runs?.[taskDetail.runs?.length - 1]?.prompt || 'unknown'}
-                              </Typography>
-                            </Stack>
-                            <Divider />
                             <Typography variant="subtitle2">Logs</Typography>
                             <Stack spacing={1}>
-                              {(taskDetail.runLogs || []).map((run) => (
-                                <Box key={run.runId} component="details" className="log-run">
-                                  <summary className="log-summary">
-                                    <span>{run.runId}</span>
-                                    <span className="log-meta">
-                                      {formatStatus(run.status)} • {formatTimestamp(run.startedAt)}
-                                    </span>
-                                  </summary>
-                                  <Stack spacing={1} sx={{ mt: 1 }}>
-                                    {run.entries.length === 0 && (
-                                      <Typography color="text.secondary">No logs yet.</Typography>
-                                    )}
-                                    {run.entries.map((entry) => (
-                                      <Box key={`${run.runId}-${entry.id}`} component="details" className="log-entry">
-                                        <summary className="log-summary">
-                                          <span className="mono">{entry.type}</span>
-                                        </summary>
-                                        <Box className="log-box">
-                                          <pre>{formatLogEntry(entry)}</pre>
+                              {(taskDetail.runLogs || []).map((run) => {
+                                const entries = run.entries || [];
+                                const agentMessages = collectAgentMessages(entries);
+                                return (
+                                  <Box key={run.runId} component="details" className="log-run">
+                                    <summary className="log-summary">
+                                      <span>{run.runId}</span>
+                                      <span className="log-meta">
+                                        {formatStatus(run.status)} • {formatTimestamp(run.startedAt)}
+                                      </span>
+                                    </summary>
+                                    <Stack spacing={1} sx={{ mt: 1 }}>
+                                      <Stack spacing={0.5}>
+                                        <Typography variant="subtitle2">Request</Typography>
+                                        <Typography color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                                          {run.prompt || 'unknown'}
+                                        </Typography>
+                                      </Stack>
+                                      {entries.length === 0 && (
+                                        <Typography color="text.secondary">No logs yet.</Typography>
+                                      )}
+                                      {entries.map((entry) => (
+                                        <Box
+                                          key={`${run.runId}-${entry.id}`}
+                                          component="details"
+                                          className="log-entry"
+                                        >
+                                          <summary className="log-summary">
+                                            <span className="mono">{formatLogSummary(entry)}</span>
+                                          </summary>
+                                          <Box className="log-box">
+                                            <pre>{formatLogEntry(entry)}</pre>
+                                          </Box>
                                         </Box>
-                                      </Box>
-                                    ))}
-                                  </Stack>
-                                </Box>
-                              ))}
+                                      ))}
+                                      {agentMessages && (
+                                        <Stack spacing={0.5}>
+                                          <Typography variant="subtitle2">Agent messages</Typography>
+                                          <Typography color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                                            {agentMessages}
+                                          </Typography>
+                                        </Stack>
+                                      )}
+                                    </Stack>
+                                  </Box>
+                                );
+                              })}
                               {(taskDetail.runLogs || []).length === 0 && (
                                 <Typography color="text.secondary">No logs yet.</Typography>
                               )}
