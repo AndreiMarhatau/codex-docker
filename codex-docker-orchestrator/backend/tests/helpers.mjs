@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 
 export function createMockExec({ branches = ['main'] } = {}) {
   const calls = [];
@@ -59,6 +61,41 @@ export function createMockExec({ branches = ['main'] } = {}) {
   exec.threadId = threadId;
 
   return exec;
+}
+
+export function createMockSpawn({ threadId = '019b341f-04d9-73b3-8263-2c05ca63d690' } = {}) {
+  const calls = [];
+  const spawnMock = (command, args) => {
+    calls.push({ command, args });
+    const child = new EventEmitter();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = () => {
+      setImmediate(() => {
+        child.emit('close', 143, 'SIGTERM');
+      });
+    };
+    const resumeIndex = args.indexOf('resume');
+    const isResume = resumeIndex !== -1 && resumeIndex <= args.length - 3;
+    setImmediate(() => {
+      child.stdout.write(
+        'banner line\n' +
+          JSON.stringify({ type: 'thread.started', thread_id: threadId }) +
+          '\n' +
+          JSON.stringify({
+            type: 'item.completed',
+            item: { id: 'item_1', type: 'agent_message', text: isResume ? 'RESUME' : 'OK' }
+          }) +
+          '\n'
+      );
+      child.stdout.end();
+      child.emit('close', 0, null);
+    });
+    return child;
+  };
+  spawnMock.calls = calls;
+  spawnMock.threadId = threadId;
+  return spawnMock;
 }
 
 export async function createTempDir() {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -54,6 +54,7 @@ function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
+  const logStreamRef = useRef(null);
 
   const selectedEnv = useMemo(
     () => envs.find((env) => env.envId === selectedEnvId),
@@ -115,6 +116,59 @@ function App() {
     }
     refreshTaskDetail(selectedTaskId).catch((err) => setError(err.message));
   }, [selectedTaskId]);
+
+  useEffect(() => {
+    if (!selectedTaskId || !taskDetail) return;
+    if (taskDetail.status !== 'running' && taskDetail.status !== 'stopping') {
+      if (logStreamRef.current) {
+        logStreamRef.current.close();
+        logStreamRef.current = null;
+      }
+      return;
+    }
+    const latestRun = taskDetail.runs?.[taskDetail.runs.length - 1];
+    if (!latestRun) return;
+    if (logStreamRef.current) {
+      logStreamRef.current.close();
+    }
+    const eventSource = new EventSource(`/api/tasks/${selectedTaskId}/logs/stream?runId=${latestRun.runId}`);
+    logStreamRef.current = eventSource;
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        const { runId, entry } = payload;
+        if (!runId || !entry) return;
+        setTaskDetail((prev) => {
+          if (!prev) return prev;
+          const runLogs = prev.runLogs ? [...prev.runLogs] : [];
+          const runIndex = runLogs.findIndex((run) => run.runId === runId);
+          if (runIndex === -1) return prev;
+          const run = runLogs[runIndex];
+          const existing = run.entries || [];
+          if (existing.some((item) => item.id === entry.id)) {
+            return prev;
+          }
+          const updatedRun = {
+            ...run,
+            entries: [...existing, entry]
+          };
+          runLogs[runIndex] = updatedRun;
+          return { ...prev, runLogs };
+        });
+      } catch (err) {
+        // Ignore malformed stream payloads.
+      }
+    };
+    eventSource.onerror = () => {
+      eventSource.close();
+    };
+    return () => {
+      eventSource.close();
+      if (logStreamRef.current === eventSource) {
+        logStreamRef.current = null;
+      }
+    };
+  }, [selectedTaskId, taskDetail]);
 
   async function handleCreateEnv() {
     setError('');
@@ -213,6 +267,20 @@ function App() {
     setLoading(true);
     try {
       await apiRequest(`/api/tasks/${selectedTaskId}/push`, { method: 'POST' });
+      await refreshTaskDetail(selectedTaskId);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleStopTask() {
+    if (!selectedTaskId) return;
+    setError('');
+    setLoading(true);
+    try {
+      await apiRequest(`/api/tasks/${selectedTaskId}/stop`, { method: 'POST' });
       await refreshTaskDetail(selectedTaskId);
     } catch (err) {
       setError(err.message);
@@ -388,144 +456,164 @@ function App() {
           <Stack spacing={3}>
             <Card>
               <CardContent>
-                <Stack spacing={2}>
-                  <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-                    <Typography variant="h6">Tasks</Typography>
-                    <Button size="small" variant="outlined" onClick={refreshAll}>
-                      Refresh
-                    </Button>
-                  </Stack>
-                  <Stack spacing={1}>
-                    {visibleTasks.map((task) => (
-                      <Card
-                        key={task.taskId}
-                        variant="outlined"
-                        sx={{
-                          borderColor: task.taskId === selectedTaskId ? 'primary.main' : 'divider',
-                          cursor: 'pointer'
-                        }}
-                        onClick={() => setSelectedTaskId(task.taskId)}
-                      >
-                        <CardContent>
-                          <Stack spacing={0.5}>
-                            <Typography fontWeight={600}>{task.branchName}</Typography>
-                            <Typography color="text.secondary">{task.repoUrl}</Typography>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              <Chip size="small" label={formatStatus(task.status)} />
-                              <Chip size="small" label={task.ref} />
-                              <Chip size="small" label={`created ${formatTimestamp(task.createdAt)}`} />
-                            </Stack>
-                          </Stack>
-                        </CardContent>
-                      </Card>
-                    ))}
-                    {visibleTasks.length === 0 && (
-                      <Typography color="text.secondary">
-                        No tasks yet. Create one on the left.
-                      </Typography>
+                  <Stack spacing={2}>
+                    {!selectedTaskId && (
+                      <>
+                        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                          <Typography variant="h6">Tasks</Typography>
+                          <Button size="small" variant="outlined" onClick={refreshAll}>
+                            Refresh
+                          </Button>
+                        </Stack>
+                        <Stack spacing={1}>
+                          {visibleTasks.map((task) => (
+                            <Card
+                              key={task.taskId}
+                              variant="outlined"
+                              sx={{
+                                borderColor: task.taskId === selectedTaskId ? 'primary.main' : 'divider',
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => setSelectedTaskId(task.taskId)}
+                            >
+                              <CardContent>
+                                <Stack spacing={0.5}>
+                                  <Typography fontWeight={600}>{task.branchName}</Typography>
+                                  <Typography color="text.secondary">{task.repoUrl}</Typography>
+                                  <Stack direction="row" spacing={1} alignItems="center">
+                                    <Chip size="small" label={formatStatus(task.status)} />
+                                    <Chip size="small" label={task.ref} />
+                                    <Chip size="small" label={`created ${formatTimestamp(task.createdAt)}`} />
+                                  </Stack>
+                                </Stack>
+                              </CardContent>
+                            </Card>
+                          ))}
+                          {visibleTasks.length === 0 && (
+                            <Typography color="text.secondary">
+                              No tasks yet. Create one on the left.
+                            </Typography>
+                          )}
+                        </Stack>
+                      </>
                     )}
-                  </Stack>
-                </Stack>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent>
-                <Stack spacing={2}>
-                  <Typography variant="h6">Task Details</Typography>
-                  {!taskDetail && (
-                    <Typography color="text.secondary">
-                      Select a task to view details, logs, and continue work.
-                    </Typography>
-                  )}
-                  {taskDetail && (
-                    <Stack spacing={2}>
-                      <Stack spacing={0.5}>
-                        <Typography fontWeight={600}>{taskDetail.branchName}</Typography>
-                        <Typography color="text.secondary">{taskDetail.repoUrl}</Typography>
-                        <Typography className="mono">{taskDetail.taskId}</Typography>
-                      </Stack>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Chip label={formatStatus(taskDetail.status)} size="small" />
-                        <Chip label={`ref: ${taskDetail.ref}`} size="small" />
-                        <Chip label={`thread: ${taskDetail.threadId}`} size="small" />
-                      </Stack>
-                      <Divider />
-                      <Stack spacing={1}>
-                        <Typography variant="subtitle2">Prompts</Typography>
-                        <Typography color="text.secondary">
-                          Initial: {taskDetail.initialPrompt || taskDetail.runs?.[0]?.prompt || 'unknown'}
-                        </Typography>
-                        <Typography color="text.secondary">
-                          Latest: {taskDetail.lastPrompt || taskDetail.runs?.[taskDetail.runs?.length - 1]?.prompt || 'unknown'}
-                        </Typography>
-                      </Stack>
-                      <Divider />
-                      <Typography variant="subtitle2">Logs</Typography>
-                      <Stack spacing={1}>
-                        {(taskDetail.runLogs || []).map((run) => (
-                          <Box key={run.runId} component="details" className="log-run">
-                            <summary className="log-summary">
-                              <span>{run.runId}</span>
-                              <span className="log-meta">
-                                {formatStatus(run.status)} • {formatTimestamp(run.startedAt)}
-                              </span>
-                            </summary>
-                            <Stack spacing={1} sx={{ mt: 1 }}>
-                              {run.entries.length === 0 && (
-                                <Typography color="text.secondary">No logs yet.</Typography>
-                              )}
-                              {run.entries.map((entry) => (
-                                <Box key={`${run.runId}-${entry.id}`} component="details" className="log-entry">
+                    {selectedTaskId && (
+                      <Stack spacing={2}>
+                        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                          <Typography variant="h6">Task Details</Typography>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => {
+                              setSelectedTaskId('');
+                              setTaskDetail(null);
+                            }}
+                          >
+                            Back to tasks
+                          </Button>
+                        </Stack>
+                        {!taskDetail && (
+                          <Typography color="text.secondary">
+                            Loading task details...
+                          </Typography>
+                        )}
+                        {taskDetail && (
+                          <Stack spacing={2}>
+                            <Stack spacing={0.5}>
+                              <Typography fontWeight={600}>{taskDetail.branchName}</Typography>
+                              <Typography color="text.secondary">{taskDetail.repoUrl}</Typography>
+                              <Typography className="mono">{taskDetail.taskId}</Typography>
+                            </Stack>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Chip label={formatStatus(taskDetail.status)} size="small" />
+                              <Chip label={`ref: ${taskDetail.ref}`} size="small" />
+                              <Chip label={`thread: ${taskDetail.threadId || 'pending'}`} size="small" />
+                            </Stack>
+                            <Divider />
+                            <Stack spacing={1}>
+                              <Typography variant="subtitle2">Prompts</Typography>
+                              <Typography color="text.secondary">
+                                Initial: {taskDetail.initialPrompt || taskDetail.runs?.[0]?.prompt || 'unknown'}
+                              </Typography>
+                              <Typography color="text.secondary">
+                                Latest: {taskDetail.lastPrompt || taskDetail.runs?.[taskDetail.runs?.length - 1]?.prompt || 'unknown'}
+                              </Typography>
+                            </Stack>
+                            <Divider />
+                            <Typography variant="subtitle2">Logs</Typography>
+                            <Stack spacing={1}>
+                              {(taskDetail.runLogs || []).map((run) => (
+                                <Box key={run.runId} component="details" className="log-run">
                                   <summary className="log-summary">
-                                    <span className="mono">{entry.type}</span>
+                                    <span>{run.runId}</span>
+                                    <span className="log-meta">
+                                      {formatStatus(run.status)} • {formatTimestamp(run.startedAt)}
+                                    </span>
                                   </summary>
-                                  <Box className="log-box">
-                                    <pre>{formatLogEntry(entry)}</pre>
-                                  </Box>
+                                  <Stack spacing={1} sx={{ mt: 1 }}>
+                                    {run.entries.length === 0 && (
+                                      <Typography color="text.secondary">No logs yet.</Typography>
+                                    )}
+                                    {run.entries.map((entry) => (
+                                      <Box key={`${run.runId}-${entry.id}`} component="details" className="log-entry">
+                                        <summary className="log-summary">
+                                          <span className="mono">{entry.type}</span>
+                                        </summary>
+                                        <Box className="log-box">
+                                          <pre>{formatLogEntry(entry)}</pre>
+                                        </Box>
+                                      </Box>
+                                    ))}
+                                  </Stack>
                                 </Box>
                               ))}
+                              {(taskDetail.runLogs || []).length === 0 && (
+                                <Typography color="text.secondary">No logs yet.</Typography>
+                              )}
                             </Stack>
-                          </Box>
-                        ))}
-                        {(taskDetail.runLogs || []).length === 0 && (
-                          <Typography color="text.secondary">No logs yet.</Typography>
+                            <TextField
+                              label="Resume prompt"
+                              fullWidth
+                              multiline
+                              minRows={3}
+                              value={resumePrompt}
+                              onChange={(event) => setResumePrompt(event.target.value)}
+                            />
+                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                              <Button
+                                variant="contained"
+                                onClick={handleResumeTask}
+                                disabled={loading || !resumePrompt.trim()}
+                              >
+                                Continue task
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                color="error"
+                                onClick={handleStopTask}
+                                disabled={loading || taskDetail.status !== 'running'}
+                              >
+                                Stop task
+                              </Button>
+                              <Button variant="outlined" onClick={handlePushTask} disabled={loading}>
+                                Push + PR
+                              </Button>
+                              <Button
+                                color="secondary"
+                                onClick={() => handleDeleteTask(taskDetail.taskId)}
+                                disabled={loading}
+                              >
+                                Remove task
+                              </Button>
+                            </Stack>
+                          </Stack>
                         )}
                       </Stack>
-                      <TextField
-                        label="Resume prompt"
-                        fullWidth
-                        multiline
-                        minRows={3}
-                        value={resumePrompt}
-                        onChange={(event) => setResumePrompt(event.target.value)}
-                      />
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                        <Button
-                          variant="contained"
-                          onClick={handleResumeTask}
-                          disabled={loading || !resumePrompt.trim()}
-                        >
-                          Continue task
-                        </Button>
-                        <Button variant="outlined" onClick={handlePushTask} disabled={loading}>
-                          Push + PR
-                        </Button>
-                        <Button
-                          color="secondary"
-                          onClick={() => handleDeleteTask(taskDetail.taskId)}
-                          disabled={loading}
-                        >
-                          Remove task
-                        </Button>
-                      </Stack>
-                    </Stack>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
-
-          </Stack>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Stack>
         </Box>
       )}
 

@@ -1,7 +1,9 @@
 const path = require('node:path');
 const os = require('node:os');
-const fs = require('node:fs/promises');
+const fs = require('node:fs');
+const fsp = require('node:fs/promises');
 const crypto = require('node:crypto');
+const { spawn } = require('node:child_process');
 const { runCommand } = require('./commands');
 const {
   ensureDir,
@@ -61,8 +63,10 @@ class Orchestrator {
   constructor(options = {}) {
     this.orchHome = options.orchHome || process.env.ORCH_HOME || DEFAULT_ORCH_HOME;
     this.exec = options.exec || runCommand;
+    this.spawn = options.spawn || spawn;
     this.now = options.now || (() => new Date().toISOString());
     this.fetch = options.fetch || global.fetch;
+    this.running = new Map();
   }
 
   envsDir() {
@@ -201,7 +205,7 @@ class Orchestrator {
     if (!latestRun) return '';
     const logPath = path.join(this.taskLogsDir(taskId), latestRun.logFile);
     try {
-      const content = await fs.readFile(logPath, 'utf8');
+      const content = await fsp.readFile(logPath, 'utf8');
       const lines = content.split(/\r?\n/).filter(Boolean);
       return lines.slice(-120).join('\n');
     } catch (error) {
@@ -216,7 +220,7 @@ class Orchestrator {
       const logPath = path.join(this.taskLogsDir(taskId), run.logFile);
       let content = '';
       try {
-        content = await fs.readFile(logPath, 'utf8');
+        content = await fsp.readFile(logPath, 'utf8');
       } catch (error) {
         content = '';
       }
@@ -235,23 +239,20 @@ class Orchestrator {
 
   async finalizeRun(taskId, runLabel, result, prompt) {
     const meta = await readJson(this.taskMetaPath(taskId));
-    const logFile = `${runLabel}.jsonl`;
-    const logPath = path.join(this.taskLogsDir(taskId), logFile);
-
-    await fs.writeFile(logPath, result.stdout || '');
-    if (result.stderr) {
-      await fs.writeFile(path.join(this.taskLogsDir(taskId), `${runLabel}.stderr`), result.stderr);
-    }
-
     const combinedOutput = [result.stdout, result.stderr].filter(Boolean).join('\n');
-    const threadId = parseThreadId(combinedOutput);
+    const threadId = result.threadId || parseThreadId(combinedOutput);
     const resolvedThreadId = threadId || meta.threadId || null;
-    const success = result.code === 0 && !!resolvedThreadId;
+    const stopped = result.stopped === true;
+    const success = !stopped && result.code === 0 && !!resolvedThreadId;
     const now = this.now();
 
     meta.threadId = resolvedThreadId;
-    meta.error = success ? null : 'Unable to parse thread_id from codex output.';
-    meta.status = success ? 'completed' : 'failed';
+    meta.error = success
+      ? null
+      : stopped
+        ? 'Stopped by user.'
+        : 'Unable to parse thread_id from codex output.';
+    meta.status = success ? 'completed' : stopped ? 'stopped' : 'failed';
     meta.updatedAt = now;
     meta.lastPrompt = prompt || meta.lastPrompt || null;
 
@@ -260,12 +261,84 @@ class Orchestrator {
       meta.runs[runIndex] = {
         ...meta.runs[runIndex],
         finishedAt: now,
-        status: success ? 'completed' : 'failed',
+        status: success ? 'completed' : stopped ? 'stopped' : 'failed',
         exitCode: result.code
       };
     }
 
     await writeJson(this.taskMetaPath(taskId), meta);
+  }
+
+  startCodexRun({ taskId, runLabel, prompt, cwd, args }) {
+    const logFile = `${runLabel}.jsonl`;
+    const logPath = path.join(this.taskLogsDir(taskId), logFile);
+    const stderrPath = path.join(this.taskLogsDir(taskId), `${runLabel}.stderr`);
+    const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+    const stderrStream = fs.createWriteStream(stderrPath, { flags: 'a' });
+    const child = this.spawn('codex-docker', args, {
+      cwd,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    const runState = { child, stopRequested: false, stopTimeout: null };
+    this.running.set(taskId, runState);
+
+    let stdoutBuffer = '';
+    let stdoutFull = '';
+    let stderrFull = '';
+    let detectedThreadId = null;
+
+    child.stdout.on('data', (chunk) => {
+      const text = chunk.toString();
+      logStream.write(text);
+      stdoutFull += text;
+      stdoutBuffer += text;
+      let index = stdoutBuffer.indexOf('\n');
+      while (index !== -1) {
+        const line = stdoutBuffer.slice(0, index).trim();
+        stdoutBuffer = stdoutBuffer.slice(index + 1);
+        if (line) {
+          const payload = safeJsonParse(line);
+          if (payload && payload.type === 'thread.started' && payload.thread_id) {
+            detectedThreadId = payload.thread_id;
+          }
+        }
+        index = stdoutBuffer.indexOf('\n');
+      }
+    });
+
+    child.stderr.on('data', (chunk) => {
+      const text = chunk.toString();
+      stderrStream.write(text);
+      stderrFull += text;
+    });
+
+    const finalize = async (code, signal) => {
+      logStream.end();
+      stderrStream.end();
+      if (runState.stopTimeout) {
+        clearTimeout(runState.stopTimeout);
+      }
+      this.running.delete(taskId);
+      const result = {
+        stdout: stdoutFull,
+        stderr: stderrFull,
+        code: code ?? 1,
+        stopped: runState.stopRequested || signal === 'SIGTERM' || signal === 'SIGKILL',
+        threadId: detectedThreadId
+      };
+      await this.finalizeRun(taskId, runLabel, result, prompt);
+    };
+
+    child.on('error', (error) => {
+      stderrFull += error?.message ? `\n${error.message}` : '\nUnknown error';
+      finalize(1, null).catch(() => {});
+    });
+
+    child.on('close', (code, signal) => {
+      finalize(code, signal).catch(() => {});
+    });
   }
 
   async createTask({ envId, ref, prompt }) {
@@ -317,16 +390,13 @@ class Orchestrator {
     };
 
     await writeJson(this.taskMetaPath(taskId), meta);
-    this.exec(
-      'codex-docker',
-      ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', prompt],
-      { cwd: worktreePath }
-    )
-      .then((result) => this.finalizeRun(taskId, runLabel, result, prompt))
-      .catch(async (error) => {
-        const result = { stdout: '', stderr: error?.message || String(error), code: 1 };
-        await this.finalizeRun(taskId, runLabel, result, prompt);
-      });
+    this.startCodexRun({
+      taskId,
+      runLabel,
+      prompt,
+      cwd: worktreePath,
+      args: ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', prompt]
+    });
     return meta;
   }
 
@@ -353,16 +423,47 @@ class Orchestrator {
     });
 
     await writeJson(this.taskMetaPath(taskId), meta);
-    this.exec(
-      'codex-docker',
-      ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', 'resume', meta.threadId, prompt],
-      { cwd: meta.worktreePath }
-    )
-      .then((result) => this.finalizeRun(taskId, runLabel, result, prompt))
-      .catch(async (error) => {
-        const result = { stdout: '', stderr: error?.message || String(error), code: 1 };
-        await this.finalizeRun(taskId, runLabel, result, prompt);
-      });
+    this.startCodexRun({
+      taskId,
+      runLabel,
+      prompt,
+      cwd: meta.worktreePath,
+      args: ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', 'resume', meta.threadId, prompt]
+    });
+    return meta;
+  }
+
+  async stopTask(taskId) {
+    await this.init();
+    const meta = await readJson(this.taskMetaPath(taskId));
+    const run = this.running.get(taskId);
+    if (!run) {
+      throw new Error('No running task found.');
+    }
+    run.stopRequested = true;
+    try {
+      run.child.kill('SIGTERM');
+      run.stopTimeout = setTimeout(() => {
+        try {
+          run.child.kill('SIGKILL');
+        } catch (error) {
+          // Ignore kill errors.
+        }
+      }, 5000);
+    } catch (error) {
+      // Ignore kill errors.
+    }
+
+    const updatedAt = this.now();
+    meta.status = 'stopping';
+    meta.updatedAt = updatedAt;
+    if (meta.runs?.length) {
+      meta.runs[meta.runs.length - 1] = {
+        ...meta.runs[meta.runs.length - 1],
+        status: 'stopping'
+      };
+    }
+    await writeJson(this.taskMetaPath(taskId), meta);
     return meta;
   }
 

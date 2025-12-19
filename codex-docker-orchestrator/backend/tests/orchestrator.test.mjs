@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
-import { createMockExec, createTempDir } from './helpers.mjs';
+import { createMockExec, createMockSpawn, createTempDir } from './helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const { Orchestrator, parseThreadId } = require('../src/orchestrator');
@@ -33,7 +33,13 @@ describe('Orchestrator', () => {
   it('creates env and task, then resumes', async () => {
     const orchHome = await createTempDir();
     const exec = createMockExec({ branches: ['main'] });
-    const orchestrator = new Orchestrator({ orchHome, exec, now: () => '2025-12-19T00:00:00.000Z' });
+    const spawn = createMockSpawn();
+    const orchestrator = new Orchestrator({
+      orchHome,
+      exec,
+      spawn,
+      now: () => '2025-12-19T00:00:00.000Z'
+    });
 
     const env = await orchestrator.createEnv({ repoUrl: 'git@example.com:repo.git', defaultBranch: 'main' });
     expect(env.repoUrl).toBe('git@example.com:repo.git');
@@ -43,7 +49,7 @@ describe('Orchestrator', () => {
     expect(task.branchName).toContain('codex/');
 
     const completed = await waitForTaskStatus(orchestrator, task.taskId, 'completed');
-    expect(completed.threadId).toBe(exec.threadId);
+    expect(completed.threadId).toBe(spawn.threadId);
     expect(completed.initialPrompt).toBe('Do work');
 
     const resumed = await orchestrator.resumeTask(task.taskId, 'Continue');

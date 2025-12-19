@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 const { Orchestrator } = require('./orchestrator');
 
 function asyncHandler(handler) {
@@ -70,6 +72,94 @@ function createApp({ orchestrator = new Orchestrator() } = {}) {
     const task = await orchestrator.resumeTask(req.params.taskId, prompt);
     res.json(task);
   }));
+
+  app.post('/api/tasks/:taskId/stop', asyncHandler(async (req, res) => {
+    const task = await orchestrator.stopTask(req.params.taskId);
+    res.json(task);
+  }));
+
+  app.get('/api/tasks/:taskId/logs/stream', async (req, res) => {
+    const { taskId } = req.params;
+    try {
+      const task = await orchestrator.getTask(taskId);
+      const runId = req.query.runId || (task.runs?.[task.runs.length - 1]?.runId ?? null);
+      if (!runId) {
+        return res.status(404).send('No runs for task.');
+      }
+      const run = task.runs.find((entry) => entry.runId === runId);
+      if (!run) {
+        return res.status(404).send('Run not found.');
+      }
+      const logPath = path.join(orchestrator.taskLogsDir(taskId), run.logFile);
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive'
+      });
+
+      let filePosition = 0;
+      let lineCount = 0;
+      try {
+        const content = await fs.readFile(logPath, 'utf8');
+        const lines = content.split(/\r?\n/).filter(Boolean);
+        lineCount = lines.length;
+        const stat = await fs.stat(logPath);
+        filePosition = stat.size;
+      } catch (error) {
+        filePosition = 0;
+      }
+
+      let buffer = '';
+      const sendEntry = (entry) => {
+        res.write(`data: ${JSON.stringify({ runId, entry })}\n\n`);
+      };
+
+      const interval = setInterval(async () => {
+        try {
+          const stat = await fs.stat(logPath);
+          if (stat.size <= filePosition) {
+            return;
+          }
+          const handle = await fs.open(logPath, 'r');
+          const length = stat.size - filePosition;
+          const readBuffer = Buffer.alloc(length);
+          await handle.read(readBuffer, 0, length, filePosition);
+          await handle.close();
+          filePosition = stat.size;
+          buffer += readBuffer.toString('utf8');
+          let newlineIndex = buffer.indexOf('\n');
+          while (newlineIndex !== -1) {
+            const line = buffer.slice(0, newlineIndex).trim();
+            buffer = buffer.slice(newlineIndex + 1);
+            if (line) {
+              lineCount += 1;
+              let parsed = null;
+              try {
+                parsed = JSON.parse(line);
+              } catch (error) {
+                parsed = null;
+              }
+              sendEntry({
+                id: `log-${lineCount}`,
+                type: parsed?.type || 'text',
+                raw: line,
+                parsed
+              });
+            }
+            newlineIndex = buffer.indexOf('\n');
+          }
+        } catch (error) {
+          // Ignore stream errors.
+        }
+      }, 1000);
+
+      req.on('close', () => {
+        clearInterval(interval);
+      });
+    } catch (error) {
+      res.status(404).send('Task not found.');
+    }
+  });
 
   app.post('/api/tasks/:taskId/push', asyncHandler(async (req, res) => {
     const result = await orchestrator.pushTask(req.params.taskId);

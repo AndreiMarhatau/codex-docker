@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createRequire } from 'node:module';
-import { createMockExec, createTempDir } from './helpers.mjs';
+import { createMockExec, createMockSpawn, createTempDir } from './helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const { createApp } = require('../src/app');
@@ -22,7 +22,13 @@ async function waitForTaskCompletion(app, taskId) {
 async function createTestApp() {
   const orchHome = await createTempDir();
   const exec = createMockExec({ branches: ['main'] });
-  const orchestrator = new Orchestrator({ orchHome, exec, now: () => '2025-12-19T00:00:00.000Z' });
+  const spawn = createMockSpawn();
+  const orchestrator = new Orchestrator({
+    orchHome,
+    exec,
+    spawn,
+    now: () => '2025-12-19T00:00:00.000Z'
+  });
   return { app: createApp({ orchestrator }), exec, orchHome };
 }
 
