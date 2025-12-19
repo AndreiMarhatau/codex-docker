@@ -92,4 +92,30 @@ describe('Orchestrator', () => {
     );
     expect(dockerChownCall).toBeTruthy();
   });
+
+  it('attempts to fix ownership before deleting an env', async () => {
+    const orchHome = await createTempDir();
+    const exec = createMockExec({ branches: ['main'] });
+    let fakeUid = null;
+    let fakeGid = null;
+    const orchestrator = new Orchestrator({
+      orchHome,
+      exec,
+      getUid: () => fakeUid,
+      getGid: () => fakeGid
+    });
+
+    const env = await orchestrator.createEnv({ repoUrl: 'git@example.com:repo.git', defaultBranch: 'main' });
+
+    const stat = await fs.stat(orchestrator.envDir(env.envId));
+    fakeUid = stat.uid === 0 ? 1000 : stat.uid;
+    fakeGid = stat.gid === 0 ? 1000 : stat.gid;
+
+    await orchestrator.deleteEnv(env.envId);
+
+    const dockerChownCall = exec.calls.find(
+      ({ command, args }) => command === 'docker' && args[0] === 'run' && args.some((arg) => arg.includes('chown -R'))
+    );
+    expect(dockerChownCall).toBeTruthy();
+  });
 });

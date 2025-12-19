@@ -334,6 +334,7 @@ class Orchestrator {
     for (const task of tasks.filter((item) => item.envId === envId)) {
       await this.deleteTask(task.taskId);
     }
+    await this.ensureOwnership(this.envDir(envId));
     await removePath(this.envDir(envId));
   }
 
