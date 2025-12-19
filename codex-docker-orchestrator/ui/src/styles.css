@@ -1,11 +1,33 @@
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
+  --body-background: radial-gradient(circle at top, rgba(31, 75, 153, 0.08), transparent 55%),
+    linear-gradient(135deg, #f7f4ef, #f2f4f8 55%, #f6f1ea);
+  --header-background: linear-gradient(125deg, #ffffff 0%, #f8f4ec 100%);
+  --header-border: rgba(31, 75, 153, 0.12);
+  --log-background: #0f172a;
+  --log-text: #e2e8f0;
+  --panel-background: #ffffff;
+  --panel-border: rgba(15, 23, 42, 0.12);
+  --meta-text: #4d5662;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --body-background: radial-gradient(circle at top, rgba(122, 162, 247, 0.18), transparent 55%),
+      linear-gradient(135deg, #0b1120, #0f172a 55%, #111827);
+    --header-background: linear-gradient(125deg, #111827 0%, #0f172a 100%);
+    --header-border: rgba(148, 163, 184, 0.2);
+    --log-background: #030712;
+    --log-text: #e5e7eb;
+    --panel-background: #111827;
+    --panel-border: rgba(148, 163, 184, 0.2);
+    --meta-text: #cbd5f5;
+  }
 }
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top, rgba(31, 75, 153, 0.08), transparent 55%),
-    linear-gradient(135deg, #f7f4ef, #f2f4f8 55%, #f6f1ea);
+  background: var(--body-background);
   min-height: 100vh;
 }
 
@@ -26,8 +48,8 @@ body {
 }
 
 .header-card {
-  background: linear-gradient(125deg, #ffffff 0%, #f8f4ec 100%);
-  border: 1px solid rgba(31, 75, 153, 0.12);
+  background: var(--header-background);
+  border: 1px solid var(--header-border);
 }
 
 .mono {
@@ -36,8 +58,8 @@ body {
 }
 
 .log-box {
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--log-background);
+  color: var(--log-text);
   padding: 16px;
   border-radius: 12px;
   overflow: auto;
@@ -54,10 +76,10 @@ body {
 
 .log-run,
 .log-entry {
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid var(--panel-border);
   border-radius: 12px;
   padding: 10px 12px;
-  background: #ffffff;
+  background: var(--panel-background);
 }
 
 .log-summary {
@@ -74,7 +96,7 @@ body {
 }
 
 .log-meta {
-  color: #4d5662;
+  color: var(--meta-text);
   font-weight: 500;
   font-size: 0.85rem;
 }
