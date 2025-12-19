@@ -28,6 +28,8 @@ You can also set the variable in a `.env` file in `ui/` (for example, `VITE_API_
 ## Environment variables
 - `ORCH_HOME`: overrides the default storage path (`~/.codex-orchestrator`).
 - `ORCH_PORT`: backend port (default `8080`).
+- `ORCH_AGENTS_FILE`: optional path to a Codex agents file to append for orchestrated runs (defaults to `codex-docker-orchestrator/ORCHESTRATOR_AGENTS.md` if present).
+- `ORCH_HOME` is automatically mounted into the container so task worktrees can resolve their git metadata.
 - `ORCH_GITHUB_TOKEN`: optional token for PR creation.
 - `ORCH_GITHUB_REPO`: optional `owner/repo` for PR creation.
 
