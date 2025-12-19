@@ -639,47 +639,55 @@ function App() {
                                 const entries = run.entries || [];
                                 const agentMessages = collectAgentMessages(entries);
                                 return (
-                                  <Box key={run.runId} component="details" className="log-run">
-                                    <summary className="log-summary">
-                                      <span>{run.runId}</span>
-                                      <span className="log-meta">
-                                        {formatStatus(run.status)} • {formatTimestamp(run.startedAt)}
-                                      </span>
-                                    </summary>
-                                    <Stack spacing={1} sx={{ mt: 1 }}>
-                                      <Stack spacing={0.5}>
-                                        <Typography variant="subtitle2">Request</Typography>
-                                        <Typography color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                                          {run.prompt || 'unknown'}
-                                        </Typography>
-                                      </Stack>
-                                      {entries.length === 0 && (
-                                        <Typography color="text.secondary">No logs yet.</Typography>
-                                      )}
-                                      {entries.map((entry) => (
-                                        <Box
-                                          key={`${run.runId}-${entry.id}`}
-                                          component="details"
-                                          className="log-entry"
-                                        >
-                                          <summary className="log-summary">
-                                            <span className="mono">{formatLogSummary(entry)}</span>
-                                          </summary>
-                                          <Box className="log-box">
-                                            <pre>{formatLogEntry(entry)}</pre>
+                                  <React.Fragment key={run.runId}>
+                                    <Box component="details" className="log-entry" open>
+                                      <summary className="log-summary">
+                                        <span>Request</span>
+                                        <span className="log-meta">{run.runId}</span>
+                                      </summary>
+                                      <Box className="log-box">
+                                        <pre>{run.prompt || 'unknown'}</pre>
+                                      </Box>
+                                    </Box>
+                                    <Box component="details" className="log-run">
+                                      <summary className="log-summary">
+                                        <span>{run.runId}</span>
+                                        <span className="log-meta">
+                                          {formatStatus(run.status)} • {formatTimestamp(run.startedAt)}
+                                        </span>
+                                      </summary>
+                                      <Stack spacing={1} sx={{ mt: 1 }}>
+                                        {entries.length === 0 && (
+                                          <Typography color="text.secondary">No logs yet.</Typography>
+                                        )}
+                                        {entries.map((entry) => (
+                                          <Box
+                                            key={`${run.runId}-${entry.id}`}
+                                            component="details"
+                                            className="log-entry"
+                                          >
+                                            <summary className="log-summary">
+                                              <span className="mono">{formatLogSummary(entry)}</span>
+                                            </summary>
+                                            <Box className="log-box">
+                                              <pre>{formatLogEntry(entry)}</pre>
+                                            </Box>
                                           </Box>
+                                        ))}
+                                      </Stack>
+                                    </Box>
+                                    {agentMessages && (
+                                      <Box component="details" className="log-entry" open>
+                                        <summary className="log-summary">
+                                          <span>Agent messages</span>
+                                          <span className="log-meta">{run.runId}</span>
+                                        </summary>
+                                        <Box className="log-box">
+                                          <pre>{agentMessages}</pre>
                                         </Box>
-                                      ))}
-                                      {agentMessages && (
-                                        <Stack spacing={0.5}>
-                                          <Typography variant="subtitle2">Agent messages</Typography>
-                                          <Typography color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                                            {agentMessages}
-                                          </Typography>
-                                        </Stack>
-                                      )}
-                                    </Stack>
-                                  </Box>
+                                      </Box>
+                                    )}
+                                  </React.Fragment>
                                 );
                               })}
                               {(taskDetail.runLogs || []).length === 0 && (
