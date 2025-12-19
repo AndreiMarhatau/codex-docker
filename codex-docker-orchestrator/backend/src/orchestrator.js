@@ -18,6 +18,21 @@ const {
 
 const DEFAULT_ORCH_HOME = path.join(os.homedir(), '.codex-orchestrator');
 const DEFAULT_IMAGE_NAME = 'ghcr.io/andreimarhatau/codex-docker:latest';
+const DEFAULT_ORCH_AGENTS_FILE = path.join(__dirname, '..', '..', 'ORCHESTRATOR_AGENTS.md');
+const COMMIT_SHA_REGEX = /^[0-9a-f]{7,40}$/i;
+
+async function resolveRefInRepo(execOrThrow, gitDir, ref) {
+  if (!ref) return ref;
+  if (ref.startsWith('refs/')) return ref;
+  if (ref.startsWith('origin/')) return `refs/remotes/${ref}`;
+  if (COMMIT_SHA_REGEX.test(ref)) return ref;
+  try {
+    await execOrThrow('git', ['--git-dir', gitDir, 'show-ref', '--verify', `refs/tags/${ref}`]);
+    return `refs/tags/${ref}`;
+  } catch (error) {
+    return `refs/remotes/origin/${ref}`;
+  }
+}
 
 function parseThreadId(jsonl) {
   const lines = jsonl.split(/\r?\n/).filter(Boolean);
@@ -68,6 +83,8 @@ class Orchestrator {
     this.now = options.now || (() => new Date().toISOString());
     this.fetch = options.fetch || global.fetch;
     this.imageName = options.imageName || process.env.IMAGE_NAME || DEFAULT_IMAGE_NAME;
+    this.orchAgentsFile =
+      options.orchAgentsFile || process.env.ORCH_AGENTS_FILE || DEFAULT_ORCH_AGENTS_FILE;
     this.running = new Map();
   }
 
@@ -193,9 +210,30 @@ class Orchestrator {
     await writeText(this.envDefaultBranchPath(envId), defaultBranch);
 
     try {
-      await this.execOrThrow('git', ['clone', '--mirror', repoUrl, mirrorDir]);
-      const verifyRef = `refs/heads/${defaultBranch}`;
-      await this.execOrThrow('git', ['--git-dir', mirrorDir, 'show-ref', '--verify', verifyRef]);
+      await this.execOrThrow('git', ['clone', '--bare', repoUrl, mirrorDir]);
+      await this.execOrThrow('git', [
+        '--git-dir',
+        mirrorDir,
+        'config',
+        'remote.origin.fetch',
+        '+refs/heads/*:refs/remotes/origin/*'
+      ]);
+      const refsToVerify = defaultBranch.startsWith('refs/')
+        ? [defaultBranch]
+        : [`refs/heads/${defaultBranch}`, `refs/remotes/origin/${defaultBranch}`];
+      let verified = false;
+      for (const ref of refsToVerify) {
+        try {
+          await this.execOrThrow('git', ['--git-dir', mirrorDir, 'show-ref', '--verify', ref]);
+          verified = true;
+          break;
+        } catch (error) {
+          // Try the next ref candidate.
+        }
+      }
+      if (!verified) {
+        throw new Error(`Default branch '${defaultBranch}' not found in repository.`);
+      }
       return { envId, repoUrl, defaultBranch };
     } catch (error) {
       await removePath(envDir);
@@ -309,9 +347,22 @@ class Orchestrator {
     const stderrPath = path.join(this.taskLogsDir(taskId), `${runLabel}.stderr`);
     const logStream = fs.createWriteStream(logPath, { flags: 'a' });
     const stderrStream = fs.createWriteStream(stderrPath, { flags: 'a' });
+    const env = { ...process.env };
+    if (this.orchAgentsFile && fs.existsSync(this.orchAgentsFile)) {
+      env.CODEX_AGENTS_APPEND_FILE = this.orchAgentsFile;
+    }
+    if (this.orchHome) {
+      const existing = env.CODEX_MOUNT_PATHS || '';
+      const parts = existing.split(':').filter(Boolean);
+      if (!parts.includes(this.orchHome)) {
+        parts.push(this.orchHome);
+      }
+      env.CODEX_MOUNT_PATHS = parts.join(':');
+    }
+
     const child = this.spawn('codex-docker', args, {
       cwd,
-      env: process.env,
+      env,
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
@@ -389,8 +440,16 @@ class Orchestrator {
 
     const targetRef = ref || env.defaultBranch;
 
-    await this.execOrThrow('git', ['--git-dir', env.mirrorPath, 'fetch', '--all', '--prune']);
-    await this.execOrThrow('git', ['--git-dir', env.mirrorPath, 'worktree', 'add', worktreePath, targetRef]);
+    await this.execOrThrow('git', [
+      '--git-dir',
+      env.mirrorPath,
+      'fetch',
+      'origin',
+      '--prune',
+      '+refs/heads/*:refs/remotes/origin/*'
+    ]);
+    const worktreeRef = await resolveRefInRepo(this.execOrThrow.bind(this), env.mirrorPath, targetRef);
+    await this.execOrThrow('git', ['--git-dir', env.mirrorPath, 'worktree', 'add', worktreePath, worktreeRef]);
     await this.execOrThrow('git', ['-C', worktreePath, 'checkout', '-b', branchName]);
 
     const runLabel = nextRunLabel(1);

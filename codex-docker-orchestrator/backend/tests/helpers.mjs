@@ -17,14 +17,17 @@ export function createMockExec({
     calls.push({ command, args, options });
 
     if (command === 'git') {
-      if (args[0] === 'clone' && args[1] === '--mirror') {
+      if (args[0] === 'clone' && args[1] === '--bare') {
         const target = args[3];
         await fs.mkdir(target, { recursive: true });
         return { stdout: '', stderr: '', code: 0 };
       }
+      if (args[0] === '--git-dir' && args[2] === 'config' && args[3] === 'remote.origin.fetch') {
+        return { stdout: '', stderr: '', code: 0 };
+      }
       if (args[0] === '--git-dir' && args[2] === 'show-ref') {
         const ref = args[4];
-        const branch = ref.replace('refs/heads/', '');
+        const branch = ref.replace('refs/remotes/origin/', '').replace('refs/heads/', '');
         if (branches.includes(branch)) {
           return { stdout: ref, stderr: '', code: 0 };
         }
