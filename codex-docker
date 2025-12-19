@@ -20,14 +20,29 @@ cleanup() {
   done
 }
 trap cleanup EXIT
+container_home="${CODEX_CONTAINER_HOME:-/tmp/codex-home}"
+container_codex_home="${container_home}/.codex"
+host_uid="$(id -u)"
+host_gid="$(id -g)"
+host_codex_dir=""
+host_container_home="$(mktemp -d)"
+cleanup_paths+=( "${host_container_home}" )
+
 if [[ -d "${HOME}/.codex" ]]; then
-  extra_mounts+=( -v "${HOME}/.codex:/root/.codex" )
+  host_codex_dir="${HOME}/.codex"
 else
-  echo "Warning: ${HOME}/.codex not found; running without host Codex config." >&2
+  host_codex_dir="${host_container_home}/.codex"
+  mkdir -p "${host_codex_dir}"
+  echo "Warning: ${HOME}/.codex not found; using temporary Codex config dir." >&2
+fi
+
+extra_mounts+=( -v "${host_container_home}:${container_home}" )
+if [[ "${host_codex_dir}" != "${host_container_home}/.codex" ]]; then
+  extra_mounts+=( -v "${host_codex_dir}:${container_codex_home}" )
 fi
 
 project_agents_file="${script_dir}/DOCKER_AGENTS.md"
-agents_override_target="/root/.codex/AGENTS.override.md"
+agents_override_target="${container_codex_home}/AGENTS.override.md"
 append_agents_file="${CODEX_AGENTS_APPEND_FILE:-}"
 combined_agents_file=""
 mount_paths_var="${CODEX_MOUNT_PATHS:-}"
@@ -97,6 +112,8 @@ fi
 docker run --rm -i \
   ${tty_flag} \
   --name "${CONTAINER_NAME}" \
+  --user "${host_uid}:${host_gid}" \
+  -e HOME="${container_home}" \
   -v "${PWD}:${container_workspace}" \
   -w "${container_workspace}" \
   "${extra_mounts[@]}" \
