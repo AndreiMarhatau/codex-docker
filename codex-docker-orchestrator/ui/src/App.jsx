@@ -76,6 +76,7 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [selectedEnvId, setSelectedEnvId] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState('');
+  const [taskFilterEnvId, setTaskFilterEnvId] = useState('');
   const [envForm, setEnvForm] = useState(emptyEnvForm);
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [resumePrompt, setResumePrompt] = useState('');
@@ -100,11 +101,13 @@ function App() {
   );
 
   const visibleTasks = useMemo(() => {
-    const filtered = selectedEnvId ? tasks.filter((task) => task.envId === selectedEnvId) : tasks;
+    const filtered = taskFilterEnvId
+      ? tasks.filter((task) => task.envId === taskFilterEnvId)
+      : tasks;
     return filtered
       .slice()
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-  }, [tasks, selectedEnvId]);
+  }, [tasks, taskFilterEnvId]);
 
   async function refreshAll() {
     const [envData, taskData] = await Promise.all([
@@ -546,9 +549,25 @@ function App() {
                       <>
                         <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
                           <Typography variant="h6">Tasks</Typography>
-                          <Button size="small" variant="outlined" onClick={refreshAll}>
-                            Refresh
-                          </Button>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <TextField
+                              select
+                              size="small"
+                              label="Filter"
+                              value={taskFilterEnvId}
+                              onChange={(event) => setTaskFilterEnvId(event.target.value)}
+                            >
+                              <MenuItem value="">All environments</MenuItem>
+                              {envs.map((env) => (
+                                <MenuItem key={env.envId} value={env.envId}>
+                                  {env.repoUrl}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                            <Button size="small" variant="outlined" onClick={refreshAll}>
+                              Refresh
+                            </Button>
+                          </Stack>
                         </Stack>
                         <Stack spacing={1}>
                           {visibleTasks.map((task) => (
