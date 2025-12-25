@@ -524,9 +524,6 @@ class Orchestrator {
     env.CODEX_ARTIFACTS_DIR = artifactsDir;
     const existingMounts = env.CODEX_MOUNT_PATHS || '';
     const mountParts = existingMounts.split(':').filter(Boolean);
-    if (this.orchHome && fs.existsSync(this.orchHome) && !mountParts.includes(this.orchHome)) {
-      mountParts.push(this.orchHome);
-    }
     if (!mountParts.includes(artifactsDir)) {
       mountParts.push(artifactsDir);
     }
