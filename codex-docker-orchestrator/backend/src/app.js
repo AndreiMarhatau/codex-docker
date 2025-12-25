@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const fs = require('node:fs/promises');
+const fsSync = require('node:fs');
 const path = require('node:path');
 const { Orchestrator } = require('./orchestrator');
 
@@ -90,6 +91,58 @@ function createApp({ orchestrator = new Orchestrator() } = {}) {
       }
       throw error;
     }
+  }));
+
+  app.get('/api/tasks/:taskId/artifacts/:runId/*', asyncHandler(async (req, res) => {
+    const { taskId, runId } = req.params;
+    const requestedPath = req.params[0];
+    if (!requestedPath) {
+      return res.status(400).send('Artifact path is required.');
+    }
+    let meta;
+    try {
+      meta = await orchestrator.getTaskMeta(taskId);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return res.status(404).send('Task not found');
+      }
+      throw error;
+    }
+    const runEntry = (meta.runs || []).find((entry) => entry.runId === runId);
+    if (!runEntry) {
+      return res.status(404).send('Run not found.');
+    }
+    const artifactsRoot = path.resolve(meta.worktreePath, '.codex-artifacts', runId);
+    const resolvedPath = path.resolve(artifactsRoot, requestedPath);
+    if (!resolvedPath.startsWith(`${artifactsRoot}${path.sep}`)) {
+      return res.status(400).send('Invalid artifact path.');
+    }
+    let stat;
+    try {
+      stat = await fs.stat(resolvedPath);
+    } catch (error) {
+      return res.status(404).send('Artifact not found.');
+    }
+    if (!stat.isFile()) {
+      return res.status(404).send('Artifact not found.');
+    }
+    const ext = path.extname(resolvedPath).toLowerCase();
+    const contentType = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+      '.bmp': 'image/bmp'
+    }[ext] || 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${path.basename(resolvedPath)}"`);
+    const stream = fsSync.createReadStream(resolvedPath);
+    stream.on('error', () => {
+      res.status(404).send('Artifact not found.');
+    });
+    stream.pipe(res);
   }));
 
   app.post('/api/tasks/:taskId/resume', asyncHandler(async (req, res) => {

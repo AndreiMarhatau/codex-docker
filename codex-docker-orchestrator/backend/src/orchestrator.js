@@ -124,6 +124,41 @@ function parseUnifiedDiff(diffText) {
   return files;
 }
 
+async function listArtifacts(rootDir) {
+  if (!(await pathExists(rootDir))) return [];
+  const artifacts = [];
+  const pending = [rootDir];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    let entries = [];
+    try {
+      entries = await fsp.readdir(current, { withFileTypes: true });
+    } catch (error) {
+      continue;
+    }
+    for (const entry of entries) {
+      const entryPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(entryPath);
+        continue;
+      }
+      if (entry.isFile()) {
+        try {
+          const stat = await fsp.stat(entryPath);
+          artifacts.push({
+            path: path.relative(rootDir, entryPath),
+            size: stat.size
+          });
+        } catch (error) {
+          continue;
+        }
+      }
+    }
+  }
+  artifacts.sort((a, b) => a.path.localeCompare(b.path));
+  return artifacts;
+}
+
 class Orchestrator {
   constructor(options = {}) {
     this.orchHome = options.orchHome || process.env.ORCH_HOME || DEFAULT_ORCH_HOME;
@@ -359,6 +394,10 @@ class Orchestrator {
     return { ...meta, logTail, runLogs };
   }
 
+  async getTaskMeta(taskId) {
+    return readJson(this.taskMetaPath(taskId));
+  }
+
   async getTaskDiff(taskId) {
     const meta = await readJson(this.taskMetaPath(taskId));
     if (!meta.baseSha) {
@@ -421,6 +460,7 @@ class Orchestrator {
         finishedAt: run.finishedAt || null,
         prompt: run.prompt,
         logFile: run.logFile,
+        artifacts: run.artifacts || [],
         entries: parseLogEntries(content)
       });
     }
@@ -435,6 +475,8 @@ class Orchestrator {
     const stopped = result.stopped === true;
     const success = !stopped && result.code === 0 && !!resolvedThreadId;
     const now = this.now();
+    const artifactsDir = path.join(meta.worktreePath, '.codex-artifacts', runLabel);
+    const artifacts = await listArtifacts(artifactsDir);
 
     meta.threadId = resolvedThreadId;
     meta.error = success
@@ -452,7 +494,8 @@ class Orchestrator {
         ...meta.runs[runIndex],
         finishedAt: now,
         status: success ? 'completed' : stopped ? 'stopped' : 'failed',
-        exitCode: result.code
+        exitCode: result.code,
+        artifacts
       };
     }
 
@@ -469,14 +512,7 @@ class Orchestrator {
     if (this.orchAgentsFile && fs.existsSync(this.orchAgentsFile)) {
       env.CODEX_AGENTS_APPEND_FILE = this.orchAgentsFile;
     }
-    if (this.orchHome) {
-      const existing = env.CODEX_MOUNT_PATHS || '';
-      const parts = existing.split(':').filter(Boolean);
-      if (!parts.includes(this.orchHome)) {
-        parts.push(this.orchHome);
-      }
-      env.CODEX_MOUNT_PATHS = parts.join(':');
-    }
+    env.CODEX_ARTIFACTS_DIR = `.codex-artifacts/${runLabel}`;
 
     const child = this.spawn('codex-docker', args, {
       cwd,
@@ -573,6 +609,7 @@ class Orchestrator {
     await this.execOrThrow('git', ['-C', worktreePath, 'checkout', '-b', branchName]);
 
     const runLabel = nextRunLabel(1);
+    await ensureDir(path.join(worktreePath, '.codex-artifacts', runLabel));
     const logFile = `${runLabel}.jsonl`;
     const now = this.now();
     const meta = {
@@ -636,6 +673,7 @@ class Orchestrator {
       exitCode: null
     });
 
+    await ensureDir(path.join(meta.worktreePath, '.codex-artifacts', runLabel));
     await writeJson(this.taskMetaPath(taskId), meta);
     this.startCodexRun({
       taskId,
