@@ -3,9 +3,6 @@ name: Orchestrator CI
 on:
   pull_request:
     branches: [ main ]
-    paths:
-      - "codex-docker-orchestrator/**"
-      - ".github/workflows/orchestrator-ci.yml"
   workflow_dispatch:
 
 jobs:
