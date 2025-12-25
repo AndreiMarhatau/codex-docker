@@ -119,7 +119,7 @@ describe('Orchestrator', () => {
     expect(dockerChownCall).toBeTruthy();
   });
 
-  it('mounts orch home as read-only for runs', async () => {
+  it('mounts mirror path for runs', async () => {
     const orchHome = await createTempDir();
     const exec = createMockExec({ branches: ['main'] });
     const spawn = createMockSpawn();
@@ -135,9 +135,8 @@ describe('Orchestrator', () => {
 
     const runCall = spawn.calls.find((call) => call.command === 'codex-docker');
     expect(runCall).toBeTruthy();
-    const mountRo = runCall.options?.env?.CODEX_MOUNT_PATHS_RO || '';
     const mountRw = runCall.options?.env?.CODEX_MOUNT_PATHS || '';
-    expect(mountRo.split(':')).toContain(orchHome);
-    expect(mountRw.split(':')).not.toContain(orchHome);
+    expect(mountRw.split(':')).toContain(orchestrator.mirrorDir(env.envId));
+    expect(runCall.options?.env?.CODEX_MOUNT_PATHS_RO).toBeUndefined();
   });
 });
