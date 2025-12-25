@@ -58,6 +58,35 @@ function formatLogSummary(entry) {
   return summary;
 }
 
+function formatBytes(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return 'unknown size';
+  if (value === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const order = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  const scaled = value / 1024 ** order;
+  return `${scaled.toFixed(order === 0 ? 0 : 1)} ${units[order]}`;
+}
+
+function encodeArtifactPath(value) {
+  return value
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+}
+
+function isImageArtifact(value) {
+  const lower = value.toLowerCase();
+  return (
+    lower.endsWith('.png') ||
+    lower.endsWith('.jpg') ||
+    lower.endsWith('.jpeg') ||
+    lower.endsWith('.gif') ||
+    lower.endsWith('.webp') ||
+    lower.endsWith('.svg') ||
+    lower.endsWith('.bmp')
+  );
+}
+
 function collectAgentMessages(entries) {
   if (!entries || entries.length === 0) return '';
   return entries
@@ -738,6 +767,7 @@ function App() {
                               {(taskDetail.runLogs || []).map((run) => {
                                 const entries = run.entries || [];
                                 const agentMessages = collectAgentMessages(entries);
+                                const artifacts = run.artifacts || [];
                                 return (
                                   <React.Fragment key={run.runId}>
                                     <Box component="details" className="log-entry" open>
@@ -775,6 +805,64 @@ function App() {
                                           </Box>
                                         ))}
                                       </Stack>
+                                    </Box>
+                                    <Box component="details" className="log-entry" open>
+                                      <summary className="log-summary">
+                                        <span>Artifacts</span>
+                                        <span className="log-meta">{artifacts.length}</span>
+                                      </summary>
+                                      <Box sx={{ mt: 1 }}>
+                                        {artifacts.length === 0 && (
+                                          <Typography color="text.secondary">
+                                            No artifacts for this run.
+                                          </Typography>
+                                        )}
+                                        {artifacts.length > 0 && (
+                                          <Box className="artifact-grid">
+                                            {artifacts.map((artifact) => {
+                                              const encodedPath = encodeArtifactPath(artifact.path);
+                                              const artifactUrl = apiUrl(
+                                                `/api/tasks/${taskDetail.taskId}/artifacts/${run.runId}/${encodedPath}`
+                                              );
+                                              const isImage = isImageArtifact(artifact.path);
+                                              return (
+                                                <Box key={artifact.path} className="artifact-item">
+                                                  {isImage && (
+                                                    <img
+                                                      className="artifact-image"
+                                                      src={artifactUrl}
+                                                      alt={artifact.path}
+                                                    />
+                                                  )}
+                                                  <Stack spacing={1}>
+                                                    <Typography className="mono">{artifact.path}</Typography>
+                                                    <Stack
+                                                      direction="row"
+                                                      spacing={1}
+                                                      alignItems="center"
+                                                      justifyContent="space-between"
+                                                    >
+                                                      <Typography color="text.secondary" variant="caption">
+                                                        {formatBytes(artifact.size)}
+                                                      </Typography>
+                                                      <Button
+                                                        component="a"
+                                                        href={artifactUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        size="small"
+                                                        variant="outlined"
+                                                      >
+                                                        Open
+                                                      </Button>
+                                                    </Stack>
+                                                  </Stack>
+                                                </Box>
+                                              );
+                                            })}
+                                          </Box>
+                                        )}
+                                      </Box>
                                     </Box>
                                     {agentMessages && (
                                       <Box component="details" className="log-entry" open>
