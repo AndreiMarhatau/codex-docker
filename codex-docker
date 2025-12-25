@@ -13,6 +13,7 @@ done
 script_dir="$(cd "$(dirname "${script_source}")" && pwd)"
 
 extra_mounts=()
+extra_envs=()
 cleanup_paths=()
 cleanup() {
   for path in "${cleanup_paths[@]:-}"; do
@@ -31,6 +32,8 @@ agents_override_target="/root/.codex/AGENTS.override.md"
 append_agents_file="${CODEX_AGENTS_APPEND_FILE:-}"
 combined_agents_file=""
 mount_paths_var="${CODEX_MOUNT_PATHS:-}"
+artifacts_host_dir="${CODEX_ARTIFACTS_DIR:-}"
+artifacts_target="/root/.artifacts"
 
 if [[ -n "${append_agents_file}" ]]; then
   if [[ -f "${append_agents_file}" ]]; then
@@ -70,6 +73,15 @@ if [[ -n "${mount_paths_var}" ]]; then
   done
 fi
 
+if [[ -n "${artifacts_host_dir}" ]]; then
+  if [[ -e "${artifacts_host_dir}" ]]; then
+    extra_mounts+=( -v "${artifacts_host_dir}:${artifacts_target}" )
+    extra_envs+=( -e "CODEX_ARTIFACTS_DIR=${artifacts_target}" )
+  else
+    echo "Warning: CODEX_ARTIFACTS_DIR '${artifacts_host_dir}' not found; skipping artifacts mount." >&2
+  fi
+fi
+
 # Run Codex interactively from the current directory, mounting it at /workspace/<folder-name>.
 folder_name="$(basename "$PWD")"
 container_workspace="/workspace/${folder_name}"
@@ -100,4 +112,5 @@ docker run --rm -i \
   -v "${PWD}:${container_workspace}" \
   -w "${container_workspace}" \
   "${extra_mounts[@]}" \
+  "${extra_envs[@]}" \
   "${IMAGE_NAME}" "$@"
