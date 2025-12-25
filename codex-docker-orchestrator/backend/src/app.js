@@ -112,26 +112,14 @@ function createApp({ orchestrator = new Orchestrator() } = {}) {
     if (!runEntry) {
       return res.status(404).send('Run not found.');
     }
-    const primaryRoot = path.resolve(orchestrator.runArtifactsDir(taskId, runId));
-    const legacyRoot = path.resolve(meta.worktreePath, '.codex-artifacts', runId);
-    let artifactsRoot = primaryRoot;
+    const artifactsRoot = path.resolve(orchestrator.runArtifactsDir(taskId, runId));
     try {
-      const stat = await fs.stat(primaryRoot);
+      const stat = await fs.stat(artifactsRoot);
       if (!stat.isDirectory()) {
-        artifactsRoot = legacyRoot;
-      }
-    } catch (error) {
-      artifactsRoot = legacyRoot;
-    }
-    if (artifactsRoot === legacyRoot) {
-      try {
-        const legacyStat = await fs.stat(legacyRoot);
-        if (!legacyStat.isDirectory()) {
-          return res.status(404).send('Artifacts directory not found.');
-        }
-      } catch (error) {
         return res.status(404).send('Artifacts directory not found.');
       }
+    } catch (error) {
+      return res.status(404).send('Artifacts directory not found.');
     }
     const resolvedPath = path.resolve(artifactsRoot, requestedPath);
     if (!resolvedPath.startsWith(`${artifactsRoot}${path.sep}`)) {
