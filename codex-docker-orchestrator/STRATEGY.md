@@ -11,7 +11,7 @@ This strategy defines the exact, end-to-end flow for managing repo environments 
     mirror/           (bare mirror clone)
   tasks/<task_id>/
     meta.json
-    worktree/
+    <repo-name>/
     logs/
       run-001.jsonl
       run-002.jsonl
@@ -39,9 +39,9 @@ This strategy defines the exact, end-to-end flow for managing repo environments 
 2. Fetch the latest refs:
    - `git --git-dir .../mirror fetch --all --prune`
 3. Create the worktree:
-   - `git --git-dir .../mirror worktree add <task_dir>/worktree <ref>`
+   - `git --git-dir .../mirror worktree add <task_dir>/<repo-name> <ref>`
 4. Create a local task branch:
-   - `git -C <task_dir>/worktree checkout -b codex/<task_id>`
+   - `git -C <task_dir>/<repo-name> checkout -b codex/<task_id>`
 5. Run Codex non-interactively:
    - `codex-docker exec --json "<prompt>"`
 6. Capture JSONL logs to `logs/run-001.jsonl`.
@@ -55,7 +55,7 @@ This strategy defines the exact, end-to-end flow for managing repo environments 
 
 ### Remove task
 1. Remove the worktree:
-   - `git --git-dir .../mirror worktree remove --force <task_dir>/worktree`
+   - `git --git-dir .../mirror worktree remove --force <task_dir>/<repo-name>`
 2. Delete `~/.codex-orchestrator/tasks/<task_id>/`.
 
 ## Resume token storage
@@ -65,7 +65,7 @@ This strategy defines the exact, end-to-end flow for managing repo environments 
 ## Push + PR (manual action)
 - The UI triggers a push endpoint on the host.
 - Backend runs:
-  - `git -C <worktree> push origin codex/<task_id>`
+  - `git -C <task_dir>/<repo-name> push origin codex/<task_id>`
 - If GitHub config is present, the backend opens a PR:
   - `ORCH_GITHUB_TOKEN` and `ORCH_GITHUB_REPO` (owner/repo) must be set.
   - `base` defaults to the repo environment `default_branch`.
@@ -74,4 +74,3 @@ This strategy defines the exact, end-to-end flow for managing repo environments 
 - Verified with Codex CLI v0.75.0 that:
   - `codex exec --json` returns a `thread_id`.
   - `codex exec --json resume <thread_id> "<prompt>"` is non-interactive.
-
