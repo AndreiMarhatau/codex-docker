@@ -818,16 +818,21 @@ function App() {
                                           </Typography>
                                         )}
                                         {artifacts.length > 0 && (
-                                          <Box className="artifact-grid">
-                                            {artifacts.map((artifact) => {
+                                          (() => {
+                                            const imageArtifacts = artifacts.filter((artifact) =>
+                                              isImageArtifact(artifact.path)
+                                            );
+                                            const fileArtifacts = artifacts.filter(
+                                              (artifact) => !isImageArtifact(artifact.path)
+                                            );
+                                            const renderArtifactCard = (artifact, showImage) => {
                                               const encodedPath = encodeArtifactPath(artifact.path);
                                               const artifactUrl = apiUrl(
                                                 `/api/tasks/${taskDetail.taskId}/artifacts/${run.runId}/${encodedPath}`
                                               );
-                                              const isImage = isImageArtifact(artifact.path);
                                               return (
                                                 <Box key={artifact.path} className="artifact-item">
-                                                  {isImage && (
+                                                  {showImage && (
                                                     <img
                                                       className="artifact-image"
                                                       src={artifactUrl}
@@ -859,8 +864,37 @@ function App() {
                                                   </Stack>
                                                 </Box>
                                               );
-                                            })}
-                                          </Box>
+                                            };
+                                            if (imageArtifacts.length > 0 && fileArtifacts.length > 0) {
+                                              return (
+                                                <Stack spacing={2}>
+                                                  <Box>
+                                                    <Typography variant="subtitle2">Images</Typography>
+                                                    <Box className="artifact-grid">
+                                                      {imageArtifacts.map((artifact) =>
+                                                        renderArtifactCard(artifact, true)
+                                                      )}
+                                                    </Box>
+                                                  </Box>
+                                                  <Box>
+                                                    <Typography variant="subtitle2">Files</Typography>
+                                                    <Box className="artifact-list">
+                                                      {fileArtifacts.map((artifact) =>
+                                                        renderArtifactCard(artifact, false)
+                                                      )}
+                                                    </Box>
+                                                  </Box>
+                                                </Stack>
+                                              );
+                                            }
+                                            return (
+                                              <Box className="artifact-grid">
+                                                {artifacts.map((artifact) =>
+                                                  renderArtifactCard(artifact, isImageArtifact(artifact.path))
+                                                )}
+                                              </Box>
+                                            );
+                                          })()
                                         )}
                                       </Box>
                                     </Box>

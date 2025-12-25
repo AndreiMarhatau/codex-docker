@@ -118,6 +118,12 @@ body {
   gap: 12px;
 }
 
+.artifact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .artifact-item {
   border: 1px solid var(--panel-border);
   border-radius: 12px;
