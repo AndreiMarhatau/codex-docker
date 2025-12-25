@@ -6,11 +6,6 @@ on:
     paths:
       - "codex-docker-orchestrator/**"
       - ".github/workflows/orchestrator-ci.yml"
-  push:
-    branches: [ main ]
-    paths:
-      - "codex-docker-orchestrator/**"
-      - ".github/workflows/orchestrator-ci.yml"
   workflow_dispatch:
 
 jobs:
