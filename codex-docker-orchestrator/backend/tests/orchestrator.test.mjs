@@ -118,4 +118,25 @@ describe('Orchestrator', () => {
     );
     expect(dockerChownCall).toBeTruthy();
   });
+
+  it('mounts mirror path for runs', async () => {
+    const orchHome = await createTempDir();
+    const exec = createMockExec({ branches: ['main'] });
+    const spawn = createMockSpawn();
+    const orchestrator = new Orchestrator({
+      orchHome,
+      exec,
+      spawn
+    });
+
+    const env = await orchestrator.createEnv({ repoUrl: 'git@example.com:repo.git', defaultBranch: 'main' });
+    const task = await orchestrator.createTask({ envId: env.envId, ref: 'main', prompt: 'Do work' });
+    await waitForTaskStatus(orchestrator, task.taskId, 'completed');
+
+    const runCall = spawn.calls.find((call) => call.command === 'codex-docker');
+    expect(runCall).toBeTruthy();
+    const mountRw = runCall.options?.env?.CODEX_MOUNT_PATHS || '';
+    expect(mountRw.split(':')).toContain(orchestrator.mirrorDir(env.envId));
+    expect(runCall.options?.env?.CODEX_MOUNT_PATHS_RO).toBeUndefined();
+  });
 });

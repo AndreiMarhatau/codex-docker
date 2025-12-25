@@ -105,8 +105,8 @@ export function createMockExec({
 
 export function createMockSpawn({ threadId = '019b341f-04d9-73b3-8263-2c05ca63d690' } = {}) {
   const calls = [];
-  const spawnMock = (command, args) => {
-    calls.push({ command, args });
+  const spawnMock = (command, args, options = {}) => {
+    calls.push({ command, args, options });
     const child = new EventEmitter();
     child.stdout = new PassThrough();
     child.stderr = new PassThrough();

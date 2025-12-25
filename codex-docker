@@ -13,7 +13,6 @@ done
 script_dir="$(cd "$(dirname "${script_source}")" && pwd)"
 
 extra_mounts=()
-extra_envs=()
 cleanup_paths=()
 cleanup() {
   for path in "${cleanup_paths[@]:-}"; do
@@ -32,6 +31,7 @@ agents_override_target="/root/.codex/AGENTS.override.md"
 append_agents_file="${CODEX_AGENTS_APPEND_FILE:-}"
 combined_agents_file=""
 mount_paths_var="${CODEX_MOUNT_PATHS:-}"
+mount_paths_ro_var="${CODEX_MOUNT_PATHS_RO:-}"
 artifacts_host_dir="${CODEX_ARTIFACTS_DIR:-}"
 artifacts_target="/root/.artifacts"
 
@@ -73,10 +73,23 @@ if [[ -n "${mount_paths_var}" ]]; then
   done
 fi
 
+if [[ -n "${mount_paths_ro_var}" ]]; then
+  IFS=':' read -r -a mount_paths_ro <<< "${mount_paths_ro_var}"
+  for mount_path in "${mount_paths_ro[@]}"; do
+    if [[ -z "${mount_path}" ]]; then
+      continue
+    fi
+    if [[ -e "${mount_path}" ]]; then
+      extra_mounts+=( -v "${mount_path}:${mount_path}:ro" )
+    else
+      echo "Warning: CODEX_MOUNT_PATHS_RO entry '${mount_path}' not found; skipping mount." >&2
+    fi
+  done
+fi
+
 if [[ -n "${artifacts_host_dir}" ]]; then
   if [[ -e "${artifacts_host_dir}" ]]; then
     extra_mounts+=( -v "${artifacts_host_dir}:${artifacts_target}" )
-    extra_envs+=( -e "CODEX_ARTIFACTS_DIR=${artifacts_target}" )
   else
     echo "Warning: CODEX_ARTIFACTS_DIR '${artifacts_host_dir}' not found; skipping artifacts mount." >&2
   fi
@@ -112,5 +125,4 @@ docker run --rm -i \
   -v "${PWD}:${container_workspace}" \
   -w "${container_workspace}" \
   "${extra_mounts[@]}" \
-  "${extra_envs[@]}" \
   "${IMAGE_NAME}" "$@"
