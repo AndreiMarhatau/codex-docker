@@ -510,7 +510,7 @@ class Orchestrator {
     await writeJson(this.taskMetaPath(taskId), meta);
   }
 
-  startCodexRun({ taskId, runLabel, prompt, cwd, args }) {
+  startCodexRun({ taskId, runLabel, prompt, cwd, args, mountPaths = [] }) {
     const logFile = `${runLabel}.jsonl`;
     const logPath = path.join(this.taskLogsDir(taskId), logFile);
     const stderrPath = path.join(this.taskLogsDir(taskId), `${runLabel}.stderr`);
@@ -523,27 +523,17 @@ class Orchestrator {
     const artifactsDir = this.runArtifactsDir(taskId, runLabel);
     env.CODEX_ARTIFACTS_DIR = artifactsDir;
     const existingMounts = env.CODEX_MOUNT_PATHS || '';
-    const mountParts = existingMounts
-      .split(':')
-      .filter(Boolean)
-      .filter((item) => item !== this.orchHome);
-    const existingRoMounts = env.CODEX_MOUNT_PATHS_RO || '';
-    const roMountParts = existingRoMounts
-      .split(':')
-      .filter(Boolean)
-      .filter((item) => item !== artifactsDir);
-    if (this.orchHome && fs.existsSync(this.orchHome) && !roMountParts.includes(this.orchHome)) {
-      roMountParts.push(this.orchHome);
+    const mountParts = existingMounts.split(':').filter(Boolean);
+    for (const mountPath of mountPaths) {
+      if (mountPath && fs.existsSync(mountPath) && !mountParts.includes(mountPath)) {
+        mountParts.push(mountPath);
+      }
     }
     if (!mountParts.includes(artifactsDir)) {
       mountParts.push(artifactsDir);
     }
     env.CODEX_MOUNT_PATHS = mountParts.join(':');
-    if (roMountParts.length > 0) {
-      env.CODEX_MOUNT_PATHS_RO = roMountParts.join(':');
-    } else {
-      delete env.CODEX_MOUNT_PATHS_RO;
-    }
+    delete env.CODEX_MOUNT_PATHS_RO;
 
     const child = this.spawn('codex-docker', args, {
       cwd,
@@ -678,7 +668,8 @@ class Orchestrator {
       runLabel,
       prompt,
       cwd: worktreePath,
-      args: ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', prompt]
+      args: ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', prompt],
+      mountPaths: [env.mirrorPath]
     });
     return meta;
   }
@@ -689,6 +680,8 @@ class Orchestrator {
     if (!meta.threadId) {
       throw new Error('Cannot resume task without a thread_id. Rerun the task to generate one.');
     }
+    const env = await this.readEnv(meta.envId);
+    await this.ensureOwnership(env.mirrorPath);
     const runsCount = meta.runs.length + 1;
     const runLabel = nextRunLabel(runsCount);
     const logFile = `${runLabel}.jsonl`;
@@ -712,7 +705,8 @@ class Orchestrator {
       runLabel,
       prompt,
       cwd: meta.worktreePath,
-      args: ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', 'resume', meta.threadId, prompt]
+      args: ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', 'resume', meta.threadId, prompt],
+      mountPaths: [env.mirrorPath]
     });
     return meta;
   }
