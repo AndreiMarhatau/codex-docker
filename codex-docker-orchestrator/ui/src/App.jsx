@@ -806,7 +806,7 @@ function App() {
                                         ))}
                                       </Stack>
                                     </Box>
-                                    <Box component="details" className="log-entry" open>
+                                    <Box component="details" className="log-entry">
                                       <summary className="log-summary">
                                         <span>Artifacts</span>
                                         <span className="log-meta">{artifacts.length}</span>
