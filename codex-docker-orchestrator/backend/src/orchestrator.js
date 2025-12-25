@@ -523,14 +523,27 @@ class Orchestrator {
     const artifactsDir = this.runArtifactsDir(taskId, runLabel);
     env.CODEX_ARTIFACTS_DIR = artifactsDir;
     const existingMounts = env.CODEX_MOUNT_PATHS || '';
-    const mountParts = existingMounts.split(':').filter(Boolean);
-    if (this.orchHome && fs.existsSync(this.orchHome) && !mountParts.includes(this.orchHome)) {
-      mountParts.push(this.orchHome);
+    const mountParts = existingMounts
+      .split(':')
+      .filter(Boolean)
+      .filter((item) => item !== this.orchHome);
+    const existingRoMounts = env.CODEX_MOUNT_PATHS_RO || '';
+    const roMountParts = existingRoMounts
+      .split(':')
+      .filter(Boolean)
+      .filter((item) => item !== artifactsDir);
+    if (this.orchHome && fs.existsSync(this.orchHome) && !roMountParts.includes(this.orchHome)) {
+      roMountParts.push(this.orchHome);
     }
     if (!mountParts.includes(artifactsDir)) {
       mountParts.push(artifactsDir);
     }
     env.CODEX_MOUNT_PATHS = mountParts.join(':');
+    if (roMountParts.length > 0) {
+      env.CODEX_MOUNT_PATHS_RO = roMountParts.join(':');
+    } else {
+      delete env.CODEX_MOUNT_PATHS_RO;
+    }
 
     const child = this.spawn('codex-docker', args, {
       cwd,
@@ -601,6 +614,7 @@ class Orchestrator {
   async createTask({ envId, ref, prompt }) {
     await this.init();
     const env = await this.readEnv(envId);
+    await this.ensureOwnership(env.mirrorPath);
     const taskId = crypto.randomUUID();
     const taskDir = this.taskDir(taskId);
     const logsDir = this.taskLogsDir(taskId);
