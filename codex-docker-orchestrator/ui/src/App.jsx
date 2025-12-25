@@ -17,6 +17,10 @@ import {
 } from '@mui/material';
 import StopCircleOutlinedIcon from '@mui/icons-material/StopCircleOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
+import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { apiRequest, apiUrl } from './api.js';
 
 const emptyEnvForm = { repoUrl: '', defaultBranch: 'main' };
@@ -65,6 +69,42 @@ function formatBytes(value) {
   const order = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
   const scaled = value / 1024 ** order;
   return `${scaled.toFixed(order === 0 ? 0 : 1)} ${units[order]}`;
+}
+
+function getGitStatusDisplay(gitStatus) {
+  if (!gitStatus) return null;
+  const dirtyNote =
+    gitStatus.dirty === true ? 'Uncommitted changes in worktree.' : 'Working tree clean.';
+  if (gitStatus.hasChanges === false) {
+    return {
+      label: 'No changes',
+      icon: <CheckCircleOutlineIcon fontSize="small" />,
+      color: 'success',
+      tooltip: `No changes since base commit. ${dirtyNote}`
+    };
+  }
+  if (gitStatus.pushed === true) {
+    return {
+      label: 'Changes pushed',
+      icon: <CloudDoneOutlinedIcon fontSize="small" />,
+      color: 'success',
+      tooltip: `Remote branch matches HEAD. ${dirtyNote}`
+    };
+  }
+  if (gitStatus.pushed === false) {
+    return {
+      label: 'Unpushed changes',
+      icon: <CloudUploadOutlinedIcon fontSize="small" />,
+      color: 'warning',
+      tooltip: `Local commits not on origin. ${dirtyNote}`
+    };
+  }
+  return {
+    label: 'Git status unknown',
+    icon: <HelpOutlineIcon fontSize="small" />,
+    color: 'default',
+    tooltip: 'Unable to read git status.'
+  };
 }
 
 function encodeArtifactPath(value) {
@@ -137,6 +177,11 @@ function App() {
       .slice()
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   }, [tasks, taskFilterEnvId]);
+
+  const gitStatusDisplay = useMemo(
+    () => getGitStatusDisplay(taskDetail?.gitStatus),
+    [taskDetail?.gitStatus]
+  );
 
   async function refreshAll() {
     const [envData, taskData] = await Promise.all([
@@ -697,6 +742,17 @@ function App() {
                               <Chip label={formatStatus(taskDetail.status)} size="small" />
                               <Chip label={`ref: ${taskDetail.ref}`} size="small" />
                               <Chip label={`thread: ${taskDetail.threadId || 'pending'}`} size="small" />
+                              {gitStatusDisplay && (
+                                <Tooltip title={gitStatusDisplay.tooltip}>
+                                  <Chip
+                                    icon={gitStatusDisplay.icon}
+                                    label={gitStatusDisplay.label}
+                                    size="small"
+                                    color={gitStatusDisplay.color}
+                                    variant="outlined"
+                                  />
+                                </Tooltip>
+                              )}
                             </Stack>
                             <Divider />
                             <Box component="details" className="log-entry">
@@ -933,7 +989,7 @@ function App() {
                                 Continue task
                               </Button>
                               <Button variant="outlined" onClick={handlePushTask} disabled={loading}>
-                                Push + PR
+                                Push
                               </Button>
                               <Stack direction="row" spacing={1} alignItems="center">
                                 <Tooltip title="Stop task">

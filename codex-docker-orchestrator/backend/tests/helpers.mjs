@@ -9,7 +9,11 @@ export function createMockExec({
   dockerImageExists = true,
   dockerImageId = 'sha256:mock-image',
   dockerCreatedAt = '2025-12-18T12:34:56.000Z',
-  baseSha = 'deadbeef1234567890'
+  baseSha = 'deadbeef1234567890',
+  headSha = 'cafebabefeedface',
+  remoteHeadSha = 'cafebabefeedface',
+  statusPorcelain = '',
+  diffHasChanges = true
 } = {}) {
   const calls = [];
   const threadId = '019b341f-04d9-73b3-8263-2c05ca63d690';
@@ -48,6 +52,9 @@ export function createMockExec({
       if (args[0] === '-C' && args[2] === 'checkout') {
         return { stdout: '', stderr: '', code: 0 };
       }
+      if (args[0] === '-C' && args[2] === 'diff' && args[3] === '--quiet') {
+        return { stdout: '', stderr: '', code: diffHasChanges ? 1 : 0 };
+      }
       if (args[0] === '-C' && args[2] === 'diff') {
         const diff = [
           'diff --git a/README.md b/README.md',
@@ -60,6 +67,19 @@ export function createMockExec({
           '+Another line'
         ].join('\n');
         return { stdout: diff, stderr: '', code: 0 };
+      }
+      if (args[0] === '-C' && args[2] === 'status' && args[3] === '--porcelain') {
+        return { stdout: statusPorcelain, stderr: '', code: 0 };
+      }
+      if (args[0] === '-C' && args[2] === 'rev-parse' && args[3] === 'HEAD') {
+        return { stdout: `${headSha}\n`, stderr: '', code: 0 };
+      }
+      if (args[0] === '-C' && args[2] === 'ls-remote' && args[3] === '--heads') {
+        const branch = args[5] || 'unknown';
+        if (!remoteHeadSha) {
+          return { stdout: '', stderr: '', code: 0 };
+        }
+        return { stdout: `${remoteHeadSha}\trefs/heads/${branch}\n`, stderr: '', code: 0 };
       }
       if (args[0] === '--git-dir' && args[2] === 'worktree' && args[3] === 'remove') {
         const worktreePath = args[5];
