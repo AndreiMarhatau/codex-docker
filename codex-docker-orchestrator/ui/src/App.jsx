@@ -15,27 +15,125 @@ import {
   Tooltip,
   Typography
 } from '@mui/material';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import StopCircleOutlinedIcon from '@mui/icons-material/StopCircleOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import HourglassTopIcon from '@mui/icons-material/HourglassTop';
+import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import { apiRequest, apiUrl } from './api.js';
 
 const emptyEnvForm = { repoUrl: '', defaultBranch: 'main' };
 const emptyTaskForm = { envId: '', ref: '', prompt: '' };
 
-function formatStatus(status) {
-  if (!status) return 'unknown';
-  return status.replace('_', ' ');
-}
+const STATUS_CONFIG = {
+  running: {
+    label: 'Running',
+    icon: PlayCircleOutlineIcon,
+    fg: '#9a3412',
+    bg: '#ffedd5',
+    border: '#fdba74'
+  },
+  stopping: {
+    label: 'Stopping',
+    icon: HourglassTopIcon,
+    fg: '#854d0e',
+    bg: '#fef9c3',
+    border: '#fde047'
+  },
+  completed: {
+    label: 'Completed',
+    icon: CheckCircleOutlineIcon,
+    fg: '#166534',
+    bg: '#dcfce7',
+    border: '#86efac'
+  },
+  failed: {
+    label: 'Failed',
+    icon: ErrorOutlineIcon,
+    fg: '#b91c1c',
+    bg: '#fee2e2',
+    border: '#fca5a5'
+  },
+  stopped: {
+    label: 'Stopped',
+    icon: PauseCircleOutlineIcon,
+    fg: '#374151',
+    bg: '#e5e7eb',
+    border: '#d1d5db'
+  },
+  unknown: {
+    label: 'Unknown',
+    icon: HelpOutlineIcon,
+    fg: '#475569',
+    bg: '#e2e8f0',
+    border: '#cbd5f5'
+  }
+};
 
 function formatTimestamp(value) {
   if (!value) return 'unknown';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return '0:00';
+  const totalSeconds = Math.floor(ms / 1000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.floor(totalMinutes / 60);
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function getElapsedMs(startedAt, finishedAt, now) {
+  if (!startedAt) return null;
+  const start = Date.parse(startedAt);
+  if (Number.isNaN(start)) return null;
+  const end = finishedAt ? Date.parse(finishedAt) : now;
+  if (Number.isNaN(end)) return null;
+  return Math.max(0, end - start);
+}
+
+function getLatestRun(task) {
+  if (!task?.runs || task.runs.length === 0) return null;
+  return task.runs[task.runs.length - 1];
+}
+
+function StatusIcon({ status, size = 'small' }) {
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.unknown;
+  const Icon = config.icon;
+  return (
+    <Tooltip title={config.label}>
+      <Box
+        component="span"
+        aria-label={config.label}
+        sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 26,
+          height: 26,
+          borderRadius: '999px',
+          backgroundColor: config.bg,
+          color: config.fg,
+          border: `1px solid ${config.border}`
+        }}
+      >
+        <Icon fontSize={size} />
+      </Box>
+    </Tooltip>
+  );
 }
 
 function formatLogEntry(entry) {
@@ -158,6 +256,7 @@ function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
+  const [now, setNow] = useState(() => Date.now());
   const logStreamRef = useRef(null);
 
   const revealDiff = (path) => {
@@ -177,6 +276,17 @@ function App() {
       .slice()
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   }, [tasks, taskFilterEnvId]);
+  const hasActiveRuns = useMemo(() => {
+    const taskRunning = tasks.some(
+      (task) => task.status === 'running' || task.status === 'stopping'
+    );
+    const detailRunning =
+      taskDetail?.status === 'running' || taskDetail?.status === 'stopping';
+    const runRunning = (taskDetail?.runs || []).some(
+      (run) => run.status === 'running' || run.status === 'stopping'
+    );
+    return taskRunning || detailRunning || runRunning;
+  }, [tasks, taskDetail]);
 
   const gitStatusDisplay = useMemo(
     () => getGitStatusDisplay(taskDetail?.gitStatus),
@@ -260,6 +370,12 @@ function App() {
     }
     refreshTaskDetail(selectedTaskId).catch((err) => setError(err.message));
   }, [selectedTaskId]);
+
+  useEffect(() => {
+    if (!hasActiveRuns) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [hasActiveRuns]);
 
   useEffect(() => {
     if (!selectedTaskId || !taskDetail) return;
@@ -660,9 +776,28 @@ function App() {
                                   <Typography color="text.secondary">{task.repoUrl}</Typography>
                                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
                                     <Stack direction="row" spacing={1} alignItems="center">
-                                      <Chip size="small" label={formatStatus(task.status)} />
+                                      <StatusIcon status={task.status} />
                                       <Chip size="small" label={task.ref} />
                                       <Chip size="small" label={`created ${formatTimestamp(task.createdAt)}`} />
+                                      {(task.status === 'running' || task.status === 'stopping') && (() => {
+                                        const latestRun = getLatestRun(task);
+                                        const durationMs = getElapsedMs(
+                                          latestRun?.startedAt || task.createdAt,
+                                          null,
+                                          now
+                                        );
+                                        if (durationMs === null) return null;
+                                        const statusLabel =
+                                          STATUS_CONFIG[task.status]?.label.toLowerCase() || 'running';
+                                        return (
+                                          <Chip
+                                            size="small"
+                                            variant="outlined"
+                                            icon={<AccessTimeIcon fontSize="small" />}
+                                            label={`${statusLabel} ${formatDuration(durationMs)}`}
+                                          />
+                                        );
+                                      })()}
                                     </Stack>
                                     <Stack direction="row" spacing={0.5} alignItems="center">
                                       <Tooltip title="Stop task">
@@ -739,9 +874,28 @@ function App() {
                               <Typography className="mono">{taskDetail.taskId}</Typography>
                             </Stack>
                             <Stack direction="row" spacing={1} alignItems="center">
-                              <Chip label={formatStatus(taskDetail.status)} size="small" />
+                              <StatusIcon status={taskDetail.status} />
                               <Chip label={`ref: ${taskDetail.ref}`} size="small" />
                               <Chip label={`thread: ${taskDetail.threadId || 'pending'}`} size="small" />
+                              {(taskDetail.status === 'running' || taskDetail.status === 'stopping') && (() => {
+                                const latestRun = getLatestRun(taskDetail);
+                                const durationMs = getElapsedMs(
+                                  latestRun?.startedAt || taskDetail.createdAt,
+                                  null,
+                                  now
+                                );
+                                if (durationMs === null) return null;
+                                const statusLabel =
+                                  STATUS_CONFIG[taskDetail.status]?.label.toLowerCase() || 'running';
+                                return (
+                                  <Chip
+                                    size="small"
+                                    variant="outlined"
+                                    icon={<AccessTimeIcon fontSize="small" />}
+                                    label={`${statusLabel} ${formatDuration(durationMs)}`}
+                                  />
+                                );
+                              })()}
                               {gitStatusDisplay && (
                                 <Tooltip title={gitStatusDisplay.tooltip}>
                                   <Chip
@@ -838,9 +992,27 @@ function App() {
                                     <Box component="details" className="log-run">
                                       <summary className="log-summary">
                                         <span>{run.runId}</span>
-                                        <span className="log-meta">
-                                          {formatStatus(run.status)} • {formatTimestamp(run.startedAt)}
-                                        </span>
+                                        <Box
+                                          component="span"
+                                          className="log-meta"
+                                          sx={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 1
+                                          }}
+                                        >
+                                          <StatusIcon status={run.status} size="small" />
+                                          <span>{formatTimestamp(run.startedAt)}</span>
+                                          {(() => {
+                                            const durationMs = getElapsedMs(
+                                              run.startedAt,
+                                              run.finishedAt,
+                                              now
+                                            );
+                                            if (durationMs === null) return null;
+                                            return <span>{formatDuration(durationMs)}</span>;
+                                          })()}
+                                        </Box>
                                       </summary>
                                       <Stack spacing={1} sx={{ mt: 1 }}>
                                         {entries.length === 0 && (
