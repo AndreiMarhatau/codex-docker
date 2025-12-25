@@ -6,3 +6,5 @@
 - Configure git email to `codex@openai.com` and username to `Codex Agent`.
 - Save any files meant for the user in `~/.artifacts`.
 - For frontend/UI changes, when it's possible, always capture screenshots and save them in `~/.artifacts`.
+- Use the preinstalled `playwright` + Chromium in the container to capture screenshots when needed.
+- Example: `playwright screenshot http://127.0.0.1:4173/ ~/.artifacts/orchestrator-ui.png` (with the UI running).
