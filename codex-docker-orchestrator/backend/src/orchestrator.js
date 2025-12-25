@@ -397,13 +397,75 @@ class Orchestrator {
 
   async getTask(taskId) {
     const meta = await readJson(this.taskMetaPath(taskId));
-    const logTail = await this.readLogTail(taskId);
-    const runLogs = await this.readRunLogs(taskId);
-    return { ...meta, logTail, runLogs };
+    const [logTail, runLogs, gitStatus] = await Promise.all([
+      this.readLogTail(taskId),
+      this.readRunLogs(taskId),
+      this.getTaskGitStatus(meta)
+    ]);
+    return { ...meta, logTail, runLogs, gitStatus };
   }
 
   async getTaskMeta(taskId) {
     return readJson(this.taskMetaPath(taskId));
+  }
+
+  async getTaskGitStatus(meta) {
+    if (!meta?.worktreePath) return null;
+    const status = {
+      hasChanges: null,
+      pushed: null,
+      dirty: null
+    };
+
+    const dirtyResult = await this.exec('git', ['-C', meta.worktreePath, 'status', '--porcelain']);
+    if (dirtyResult.code === 0) {
+      status.dirty = dirtyResult.stdout.trim().length > 0;
+    }
+
+    if (meta.baseSha) {
+      const diffResult = await this.exec('git', [
+        '-C',
+        meta.worktreePath,
+        'diff',
+        '--quiet',
+        `${meta.baseSha}...HEAD`
+      ]);
+      if (diffResult.code === 0) status.hasChanges = false;
+      if (diffResult.code === 1) status.hasChanges = true;
+    }
+    if (status.dirty === true && status.hasChanges !== true) {
+      status.hasChanges = true;
+    }
+
+    let localHead = null;
+    const headResult = await this.exec('git', ['-C', meta.worktreePath, 'rev-parse', 'HEAD']);
+    if (headResult.code === 0) {
+      localHead = headResult.stdout.trim() || null;
+    }
+
+    let remoteHead = null;
+    let remoteQueryOk = false;
+    const remoteResult = await this.exec('git', [
+      '-C',
+      meta.worktreePath,
+      'ls-remote',
+      '--heads',
+      'origin',
+      meta.branchName
+    ]);
+    if (remoteResult.code === 0) {
+      remoteQueryOk = true;
+      const line = remoteResult.stdout.split('\n').find(Boolean);
+      if (line) {
+        remoteHead = line.split(/\s+/)[0] || null;
+      }
+    }
+
+    if (localHead && remoteQueryOk) {
+      status.pushed = remoteHead ? remoteHead === localHead : false;
+    }
+
+    return status;
   }
 
   async getTaskDiff(taskId) {
