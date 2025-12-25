@@ -21,6 +21,12 @@ const DEFAULT_IMAGE_NAME = 'ghcr.io/andreimarhatau/codex-docker:latest';
 const DEFAULT_ORCH_AGENTS_FILE = path.join(__dirname, '..', '..', 'ORCHESTRATOR_AGENTS.md');
 const COMMIT_SHA_REGEX = /^[0-9a-f]{7,40}$/i;
 
+function invalidImageError(message) {
+  const error = new Error(message);
+  error.code = 'INVALID_IMAGE';
+  return error;
+}
+
 async function resolveRefInRepo(execOrThrow, gitDir, ref) {
   if (!ref) return ref;
   if (ref.startsWith('refs/')) return ref;
@@ -207,6 +213,10 @@ class Orchestrator {
 
   envDir(envId) {
     return path.join(this.envsDir(), envId);
+  }
+
+  uploadsDir() {
+    return path.join(this.orchHome, 'uploads');
   }
 
   mirrorDir(envId) {
@@ -683,10 +693,42 @@ class Orchestrator {
     });
   }
 
-  async createTask({ envId, ref, prompt }) {
+  async resolveImagePaths(imagePaths) {
+    if (!Array.isArray(imagePaths) || imagePaths.length === 0) return [];
+    if (imagePaths.length > 5) {
+      throw invalidImageError('Up to 5 images are supported per request.');
+    }
+    const uploadsRoot = path.resolve(this.uploadsDir());
+    const resolved = [];
+    for (const imagePath of imagePaths) {
+      if (typeof imagePath !== 'string' || !imagePath.trim()) {
+        throw invalidImageError('Invalid image path provided.');
+      }
+      const resolvedPath = path.resolve(imagePath);
+      if (resolvedPath === uploadsRoot || !resolvedPath.startsWith(`${uploadsRoot}${path.sep}`)) {
+        throw invalidImageError('Images must be uploaded via orchestrator before use.');
+      }
+      let stat;
+      try {
+        stat = await fsp.stat(resolvedPath);
+      } catch (error) {
+        throw invalidImageError(`Image not found: ${imagePath}`);
+      }
+      if (!stat.isFile()) {
+        throw invalidImageError(`Image not found: ${imagePath}`);
+      }
+      if (!resolved.includes(resolvedPath)) {
+        resolved.push(resolvedPath);
+      }
+    }
+    return resolved;
+  }
+
+  async createTask({ envId, ref, prompt, imagePaths }) {
     await this.init();
     const env = await this.readEnv(envId);
     await this.ensureOwnership(env.mirrorPath);
+    const resolvedImagePaths = await this.resolveImagePaths(imagePaths);
     const taskId = crypto.randomUUID();
     const taskDir = this.taskDir(taskId);
     const logsDir = this.taskLogsDir(taskId);
@@ -745,13 +787,14 @@ class Orchestrator {
     };
 
     await writeJson(this.taskMetaPath(taskId), meta);
+    const imageArgs = resolvedImagePaths.flatMap((imagePath) => ['--image', imagePath]);
     this.startCodexRun({
       taskId,
       runLabel,
       prompt,
       cwd: worktreePath,
-      args: ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', prompt],
-      mountPaths: [env.mirrorPath]
+      args: ['exec', '--dangerously-bypass-approvals-and-sandbox', '--json', ...imageArgs, prompt],
+      mountPaths: [env.mirrorPath, ...resolvedImagePaths]
     });
     return meta;
   }

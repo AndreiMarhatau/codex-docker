@@ -30,6 +30,7 @@ import { apiRequest, apiUrl } from './api.js';
 
 const emptyEnvForm = { repoUrl: '', defaultBranch: 'main' };
 const emptyTaskForm = { envId: '', ref: '', prompt: '' };
+const MAX_TASK_IMAGES = 5;
 
 const STATUS_CONFIG = {
   running: {
@@ -94,6 +95,21 @@ function formatDuration(ms) {
     return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function isSupportedTaskImage(file) {
+  const type = (file.type || '').toLowerCase();
+  const name = (file.name || '').toLowerCase();
+  const ext = name.includes('.') ? `.${name.split('.').pop()}` : '';
+  const allowedTypes = new Set([
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+    'image/bmp'
+  ]);
+  const allowedExts = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
+  return allowedTypes.has(type) || allowedExts.has(ext);
 }
 
 function getElapsedMs(startedAt, finishedAt, now) {
@@ -255,8 +271,12 @@ function App() {
   const [imageUpdating, setImageUpdating] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [taskImages, setTaskImages] = useState([]);
+  const [taskImageError, setTaskImageError] = useState('');
+  const [taskImageUploading, setTaskImageUploading] = useState(false);
   const [activeTab, setActiveTab] = useState(1);
   const [now, setNow] = useState(() => Date.now());
+  const taskImageInputRef = useRef(null);
   const logStreamRef = useRef(null);
 
   const revealDiff = (path) => {
@@ -451,18 +471,78 @@ function App() {
 
   async function handleCreateTask() {
     setError('');
+    setTaskImageError('');
     setLoading(true);
     try {
+      let imagePaths = [];
+      if (taskImages.length > 0) {
+        setTaskImageUploading(true);
+        try {
+          const formData = new FormData();
+          taskImages.forEach((file) => {
+            formData.append('images', file);
+          });
+          const response = await fetch(apiUrl('/api/uploads'), {
+            method: 'POST',
+            body: formData
+          });
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Image upload failed.');
+          }
+          const uploadPayload = await response.json();
+          imagePaths = (uploadPayload.uploads || []).map((upload) => upload.path);
+        } finally {
+          setTaskImageUploading(false);
+        }
+      }
       await apiRequest('/api/tasks', {
         method: 'POST',
-        body: JSON.stringify(taskForm)
+        body: JSON.stringify({ ...taskForm, imagePaths })
       });
       setTaskForm(emptyTaskForm);
+      setTaskImages([]);
+      if (taskImageInputRef.current) {
+        taskImageInputRef.current.value = '';
+      }
       await refreshAll();
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function handleTaskImagesSelected(event) {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+    const nextImages = [];
+    const errors = [];
+    for (const file of files) {
+      if (!isSupportedTaskImage(file)) {
+        errors.push(`Unsupported image: ${file.name}`);
+        continue;
+      }
+      nextImages.push(file);
+    }
+    const combined = [...taskImages, ...nextImages];
+    if (combined.length > MAX_TASK_IMAGES) {
+      errors.push(`Only ${MAX_TASK_IMAGES} images can be attached.`);
+    }
+    setTaskImages(combined.slice(0, MAX_TASK_IMAGES));
+    setTaskImageError(errors.join(' '));
+    event.target.value = '';
+  }
+
+  function handleRemoveTaskImage(index) {
+    setTaskImages((prev) => prev.filter((_, idx) => idx !== index));
+  }
+
+  function handleClearTaskImages() {
+    setTaskImages([]);
+    setTaskImageError('');
+    if (taskImageInputRef.current) {
+      taskImageInputRef.current.value = '';
     }
   }
 
@@ -719,12 +799,61 @@ function App() {
                       setTaskForm((prev) => ({ ...prev, prompt: event.target.value }))
                     }
                   />
+                  <Stack spacing={1}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+                      <Button
+                        variant="outlined"
+                        component="label"
+                        disabled={loading || taskImageUploading || taskImages.length >= MAX_TASK_IMAGES}
+                      >
+                        Add images
+                        <input
+                          ref={taskImageInputRef}
+                          type="file"
+                          hidden
+                          multiple
+                          accept="image/png,image/jpeg,image/gif,image/webp,image/bmp"
+                          onChange={handleTaskImagesSelected}
+                        />
+                      </Button>
+                      <Typography color="text.secondary">
+                        Up to {MAX_TASK_IMAGES} images, used only for the initial request.
+                      </Typography>
+                    </Stack>
+                    {taskImageError && <Typography color="error">{taskImageError}</Typography>}
+                    {taskImages.length > 0 && (
+                      <Stack spacing={1}>
+                        <Stack direction="row" spacing={1} flexWrap="wrap">
+                          {taskImages.map((file, index) => (
+                            <Chip
+                              key={`${file.name}-${index}`}
+                              label={`${file.name} (${formatBytes(file.size)})`}
+                              onDelete={() => handleRemoveTaskImage(index)}
+                            />
+                          ))}
+                        </Stack>
+                        <Button
+                          size="small"
+                          color="secondary"
+                          onClick={handleClearTaskImages}
+                          disabled={loading || taskImageUploading}
+                        >
+                          Clear images
+                        </Button>
+                      </Stack>
+                    )}
+                  </Stack>
                   <Button
                     variant="contained"
                     onClick={handleCreateTask}
-                    disabled={loading || !taskForm.envId || !taskForm.prompt.trim()}
+                    disabled={
+                      loading ||
+                      taskImageUploading ||
+                      !taskForm.envId ||
+                      !taskForm.prompt.trim()
+                    }
                   >
-                    Run task
+                    {taskImageUploading ? 'Uploading images...' : 'Run task'}
                   </Button>
                 </Stack>
               </CardContent>
