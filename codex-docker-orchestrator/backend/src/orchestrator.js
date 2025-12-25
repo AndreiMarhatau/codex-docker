@@ -202,6 +202,14 @@ class Orchestrator {
     return path.join(this.taskDir(taskId), 'worktree');
   }
 
+  taskArtifactsDir(taskId) {
+    return path.join(this.taskDir(taskId), 'artifacts');
+  }
+
+  runArtifactsDir(taskId, runLabel) {
+    return path.join(this.taskArtifactsDir(taskId), runLabel);
+  }
+
   taskMetaPath(taskId) {
     return path.join(this.taskDir(taskId), 'meta.json');
   }
@@ -475,7 +483,7 @@ class Orchestrator {
     const stopped = result.stopped === true;
     const success = !stopped && result.code === 0 && !!resolvedThreadId;
     const now = this.now();
-    const artifactsDir = path.join(meta.worktreePath, '.codex-artifacts', runLabel);
+    const artifactsDir = this.runArtifactsDir(taskId, runLabel);
     const artifacts = await listArtifacts(artifactsDir);
 
     meta.threadId = resolvedThreadId;
@@ -512,7 +520,14 @@ class Orchestrator {
     if (this.orchAgentsFile && fs.existsSync(this.orchAgentsFile)) {
       env.CODEX_AGENTS_APPEND_FILE = this.orchAgentsFile;
     }
-    env.CODEX_ARTIFACTS_DIR = `.codex-artifacts/${runLabel}`;
+    const artifactsDir = this.runArtifactsDir(taskId, runLabel);
+    env.CODEX_ARTIFACTS_DIR = artifactsDir;
+    const existingMounts = env.CODEX_MOUNT_PATHS || '';
+    const mountParts = existingMounts.split(':').filter(Boolean);
+    if (!mountParts.includes(artifactsDir)) {
+      mountParts.push(artifactsDir);
+    }
+    env.CODEX_MOUNT_PATHS = mountParts.join(':');
 
     const child = this.spawn('codex-docker', args, {
       cwd,
@@ -609,7 +624,7 @@ class Orchestrator {
     await this.execOrThrow('git', ['-C', worktreePath, 'checkout', '-b', branchName]);
 
     const runLabel = nextRunLabel(1);
-    await ensureDir(path.join(worktreePath, '.codex-artifacts', runLabel));
+    await ensureDir(this.runArtifactsDir(taskId, runLabel));
     const logFile = `${runLabel}.jsonl`;
     const now = this.now();
     const meta = {
@@ -673,7 +688,7 @@ class Orchestrator {
       exitCode: null
     });
 
-    await ensureDir(path.join(meta.worktreePath, '.codex-artifacts', runLabel));
+    await ensureDir(this.runArtifactsDir(taskId, runLabel));
     await writeJson(this.taskMetaPath(taskId), meta);
     this.startCodexRun({
       taskId,

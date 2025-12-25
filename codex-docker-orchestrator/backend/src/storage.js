@@ -7,7 +7,9 @@ async function ensureDir(dirPath) {
 
 async function writeJson(filePath, data) {
   await ensureDir(path.dirname(filePath));
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  await fs.writeFile(tempPath, JSON.stringify(data, null, 2));
+  await fs.rename(tempPath, filePath);
 }
 
 async function readJson(filePath) {
