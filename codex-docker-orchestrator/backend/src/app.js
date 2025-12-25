@@ -1,14 +1,61 @@
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { Orchestrator } = require('./orchestrator');
 
 function asyncHandler(handler) {
   return (req, res, next) => {
     Promise.resolve(handler(req, res, next)).catch(next);
   };
+}
+
+function isSupportedImageFile(file) {
+  const mimeType = (file.mimetype || '').toLowerCase();
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const allowedMimeTypes = new Set([
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+    'image/bmp'
+  ]);
+  const allowedExts = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
+  return allowedMimeTypes.has(mimeType) || allowedExts.has(ext);
+}
+
+function createUploadMiddleware(orchestrator) {
+  const storage = multer.diskStorage({
+    destination: async (req, file, cb) => {
+      try {
+        await fs.mkdir(orchestrator.uploadsDir(), { recursive: true });
+        cb(null, orchestrator.uploadsDir());
+      } catch (error) {
+        cb(error);
+      }
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      cb(null, `${crypto.randomUUID()}${ext}`);
+    }
+  });
+  return multer({
+    storage,
+    limits: {
+      files: 5,
+      fileSize: 10 * 1024 * 1024
+    },
+    fileFilter: (req, file, cb) => {
+      if (isSupportedImageFile(file)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only png, jpg, gif, webp, or bmp images are supported.'));
+      }
+    }
+  });
 }
 
 function createApp({ orchestrator = new Orchestrator() } = {}) {
@@ -55,18 +102,46 @@ function createApp({ orchestrator = new Orchestrator() } = {}) {
     res.json(info);
   }));
 
+  const upload = createUploadMiddleware(orchestrator);
+
+  app.post('/api/uploads', (req, res) => {
+    upload.array('images', 5)(req, res, (error) => {
+      if (error) {
+        return res.status(400).send(error.message || 'Upload failed.');
+      }
+      const files = req.files || [];
+      if (files.length === 0) {
+        return res.status(400).send('No images uploaded.');
+      }
+      const uploads = files.map((file) => ({
+        path: file.path,
+        originalName: file.originalname,
+        size: file.size,
+        mimeType: file.mimetype
+      }));
+      res.status(201).json({ uploads });
+    });
+  });
+
   app.post('/api/settings/image/pull', asyncHandler(async (req, res) => {
     const info = await orchestrator.pullImage();
     res.json(info);
   }));
 
   app.post('/api/tasks', asyncHandler(async (req, res) => {
-    const { envId, ref, prompt } = req.body;
+    const { envId, ref, prompt, imagePaths } = req.body;
     if (!envId || !prompt) {
       return res.status(400).send('envId and prompt are required');
     }
-    const task = await orchestrator.createTask({ envId, ref, prompt });
-    res.status(201).json(task);
+    try {
+      const task = await orchestrator.createTask({ envId, ref, prompt, imagePaths });
+      res.status(201).json(task);
+    } catch (error) {
+      if (error.code === 'INVALID_IMAGE') {
+        return res.status(400).send(error.message);
+      }
+      throw error;
+    }
   }));
 
   app.get('/api/tasks/:taskId', asyncHandler(async (req, res) => {

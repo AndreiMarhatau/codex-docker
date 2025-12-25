@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createRequire } from 'node:module';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { createMockExec, createMockSpawn, createTempDir } from './helpers.mjs';
 
 const require = createRequire(import.meta.url);
@@ -29,7 +31,7 @@ async function createTestApp() {
     spawn,
     now: () => '2025-12-19T00:00:00.000Z'
   });
-  return { app: createApp({ orchestrator }), exec, orchHome };
+  return { app: createApp({ orchestrator }), exec, orchHome, spawn };
 }
 
 describe('API', () => {
@@ -79,5 +81,50 @@ describe('API', () => {
     const pullRes = await request(app).post('/api/settings/image/pull').expect(200);
     expect(pullRes.body.imageName).toBe(infoRes.body.imageName);
     expect(pullRes.body.present).toBe(true);
+  });
+
+  it('uploads images and attaches them to new tasks', async () => {
+    const { app, orchHome, spawn } = await createTestApp();
+
+    const envRes = await request(app)
+      .post('/api/envs')
+      .send({ repoUrl: 'git@example.com:repo.git', defaultBranch: 'main' })
+      .expect(201);
+
+    const tempDir = await createTempDir();
+    const imagePath = path.join(tempDir, 'sample.png');
+    await fs.writeFile(imagePath, Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex'));
+
+    const uploadRes = await request(app)
+      .post('/api/uploads')
+      .attach('images', imagePath)
+      .expect(201);
+
+    const uploadedPath = uploadRes.body.uploads[0].path;
+    expect(uploadedPath.startsWith(path.join(orchHome, 'uploads'))).toBe(true);
+
+    const taskRes = await request(app)
+      .post('/api/tasks')
+      .send({ envId: envRes.body.envId, ref: 'main', prompt: 'Do work', imagePaths: [uploadedPath] })
+      .expect(201);
+
+    expect(taskRes.body.status).toBe('running');
+    expect(spawn.calls[0].args).toContain('--image');
+    expect(spawn.calls[0].args).toContain(uploadedPath);
+    expect(spawn.calls[0].options.env.CODEX_MOUNT_PATHS).toContain(uploadedPath);
+  });
+
+  it('rejects tasks with invalid image paths', async () => {
+    const { app } = await createTestApp();
+
+    const envRes = await request(app)
+      .post('/api/envs')
+      .send({ repoUrl: 'git@example.com:repo.git', defaultBranch: 'main' })
+      .expect(201);
+
+    await request(app)
+      .post('/api/tasks')
+      .send({ envId: envRes.body.envId, ref: 'main', prompt: 'Do work', imagePaths: ['/tmp/nope.png'] })
+      .expect(400);
   });
 });
