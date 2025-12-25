@@ -630,8 +630,15 @@ class Orchestrator {
     const child = this.spawn('codex-docker', args, {
       cwd,
       env,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe']
     });
+
+    if (child.stdin) {
+      if (typeof prompt === 'string' && prompt.length > 0) {
+        child.stdin.write(prompt);
+      }
+      child.stdin.end();
+    }
 
     const runState = { child, stopRequested: false, stopTimeout: null };
     this.running.set(taskId, runState);
