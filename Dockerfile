@@ -14,11 +14,17 @@ RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
   && npm install -g "@openai/codex@${CODEX_VER}" \
   && rm -rf node_modules'
 
-# Symlink codex and node into /usr/local/bin so they're always on PATH at runtime.
+# Install Playwright + Chromium for UI screenshots.
+RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
+  && npm install -g playwright \
+  && playwright install --with-deps chromium'
+
+# Symlink codex, node, and playwright into /usr/local/bin so they're always on PATH at runtime.
 RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
   && BIN_DIR="$(dirname "$(nvm which default)")" \
   && ln -sf "${BIN_DIR}/codex" /usr/local/bin/codex \
-  && ln -sf "${BIN_DIR}/node" /usr/local/bin/node'
+  && ln -sf "${BIN_DIR}/node" /usr/local/bin/node \
+  && ln -sf "${BIN_DIR}/playwright" /usr/local/bin/playwright'
 
 # Provide a convenient helper to run the required uncommitted-changes review inside the container.
 RUN cat <<'EOF' >/usr/local/bin/codex-review \
