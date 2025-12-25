@@ -130,6 +130,7 @@ export function createMockSpawn({ threadId = '019b341f-04d9-73b3-8263-2c05ca63d6
     const child = new EventEmitter();
     child.stdout = new PassThrough();
     child.stderr = new PassThrough();
+    child.stdin = new PassThrough();
     child.kill = () => {
       setImmediate(() => {
         child.emit('close', 143, 'SIGTERM');
