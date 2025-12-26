@@ -3,6 +3,11 @@ FROM ghcr.io/openai/codex-universal@sha256:e47849324e35257850d13b7173d2d6a6a81e9
 WORKDIR /opt/codex
 COPY package.json package-lock.json ./
 
+# Install Docker CLI so Codex can talk to a mounted host Docker socket.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends docker.io \
+  && rm -rf /var/lib/apt/lists/*
+
 # Ensure Codex home exists and provide the container-specific agents file there by default.
 RUN mkdir -p /root/.codex
 COPY DOCKER_AGENTS.md /root/.codex/AGENTS.override.md
