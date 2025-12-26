@@ -1,0 +1,71 @@
+name: Tag and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to tag and release"
+        required: false
+        default: "main"
+      bump:
+        description: "Version increment"
+        required: false
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Determine next version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_tag=$(git tag --list 'v*' --sort=-v:refname | head -n 1 || true)
+          if [ -z "$latest_tag" ]; then
+            base="0.0.0"
+          else
+            base="${latest_tag#v}"
+          fi
+          IFS='.' read -r major minor patch <<< "$base"
+          case "${{ inputs.bump }}" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+            *)
+              echo "Unsupported bump type: ${{ inputs.bump }}"
+              exit 1
+              ;;
+          esac
+          next_tag="v${major}.${minor}.${patch}"
+          echo "next_tag=${next_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.next_tag }}
+          target_commitish: ${{ inputs.branch }}
+          generate_release_notes: true
