@@ -48,8 +48,9 @@ This repo runs dependabot every day to update base codex-universal image, and Co
 - Codex review arguments: `codex exec --dangerously-bypass-approvals-and-sandbox --json -c features.web_search_request=true review --uncommitted | jq -rs '[.[] | select(.type==\"item.completed\" and .item.type==\"agent_message\") | .item.text] | last // \"\"'`
 
 ## Container-only AGENTS override
-- The image ships `DOCKER_AGENTS.md`; it is copied to `/root/.codex/AGENTS.override.md` inside the image.
-- The `codex-docker` helper also bind-mounts that file into `/root/.codex/AGENTS.override.md` (read-only) so it is present even when your host `~/.codex` is mounted. The host filesystem is not modified and no project files are touched.
-- Set `CODEX_AGENTS_APPEND_FILE=/path/to/extra.md` to append extra instructions (merged with `DOCKER_AGENTS.md`) for a single run.
+- The image ships `DOCKER_AGENTS.md` as `/usr/local/share/codex/AGENTS.docker.md`.
+- The helper mounts your host `~/.codex` read-write at `/root/.codex` so history and config persist across runs. It also mounts the same directory read-only at `/root/.codex-host` so the host `AGENTS.override.md` can be read without being overwritten.
+- On startup, the container entrypoint merges (in order): host `~/.codex-host/AGENTS.override.md` (if present), baked-in `AGENTS.docker.md`, and `CODEX_AGENTS_APPEND_FILE` (if provided). The merged file is written to `/root/.codex/AGENTS.override.md` via a temporary mount so the host override file stays intact.
+- Set `CODEX_AGENTS_APPEND_FILE=/path/to/extra.md` to append extra instructions for a single run.
 - Set `CODEX_MOUNT_PATHS=/abs/path1:/abs/path2` to bind-mount additional host paths into the container at the same absolute locations.
 - Set `CODEX_MOUNT_PATHS_RO=/abs/path1:/abs/path2` to bind-mount additional host paths into the container read-only.

@@ -8,9 +8,11 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends docker.io \
   && rm -rf /var/lib/apt/lists/*
 
-# Ensure Codex home exists and provide the container-specific agents file there by default.
-RUN mkdir -p /root/.codex
-COPY DOCKER_AGENTS.md /root/.codex/AGENTS.override.md
+# Ensure Codex home exists and provide the container-specific agents file for the entrypoint merger.
+RUN mkdir -p /root/.codex /usr/local/share/codex
+COPY DOCKER_AGENTS.md /usr/local/share/codex/AGENTS.docker.md
+COPY codex-entrypoint.sh /usr/local/bin/codex-entrypoint
+RUN chmod +x /usr/local/bin/codex-entrypoint
 
 # Install the pinned Codex CLI globally using the default nvm Node.
 RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
@@ -42,7 +44,7 @@ codex exec --dangerously-bypass-approvals-and-sandbox --json -c features.web_sea
 EOF
 
 # Launch Codex by default with a bypassed sandbox and search enabled.
-ENTRYPOINT ["codex", "--dangerously-bypass-approvals-and-sandbox", "--search"]
+ENTRYPOINT ["/usr/local/bin/codex-entrypoint", "codex", "--dangerously-bypass-approvals-and-sandbox", "--search"]
 
 # CI smoke-test target: build with --target ci-smoke to verify the exact Codex commands we ship.
 FROM release AS ci-smoke
