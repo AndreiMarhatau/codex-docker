@@ -21,12 +21,11 @@ jobs:
           filters: |
             docker:
               - "Dockerfile"
-              - "codex-entrypoint.sh"
-              - "codex-docker"
               - "package.json"
               - "package-lock.json"
               - "DOCKER_AGENTS.md"
               - ".github/workflows/pr-check.yml"
+              - "codex-entrypoint.sh"
 
       - name: Validate lockfile
         uses: actions/setup-node@v4
