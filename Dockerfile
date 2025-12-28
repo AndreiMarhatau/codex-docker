@@ -52,4 +52,5 @@ RUN codex --dangerously-bypass-approvals-and-sandbox --search --version \
   && codex exec --dangerously-bypass-approvals-and-sandbox --json -c features.web_search_request=true review --help >/dev/null \
   && jq --version >/dev/null \
   && bash -n /usr/local/bin/codex-review \
+  && bash -n /usr/local/bin/codex-entrypoint \
   && node --version
