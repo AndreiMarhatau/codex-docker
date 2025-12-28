@@ -8,15 +8,6 @@ base_agents_file="/usr/local/share/codex/AGENTS.docker.md"
 
 mkdir -p "${codex_home}"
 
-if [[ -d "${host_codex_home}" ]]; then
-  shopt -s dotglob
-  for entry in "${host_codex_home}"/*; do
-    [[ -e "${entry}" ]] || continue
-    cp -a "${entry}" "${codex_home}/"
-  done
-  shopt -u dotglob
-fi
-
 if [[ -f "${host_codex_home}/AGENTS.override.md" ]] || [[ -f "${base_agents_file}" ]] || [[ -f "${append_agents_file}" ]]; then
   combined_agents_file="$(mktemp)"
   for part in "${host_codex_home}/AGENTS.override.md" "${base_agents_file}" "${append_agents_file}"; do
