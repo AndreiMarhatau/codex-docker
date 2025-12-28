@@ -6,10 +6,9 @@ on:
     paths:
       - "Dockerfile"
       - "codex-entrypoint.sh"
+      - "DOCKER_AGENTS.md"
       - "package.json"
       - "package-lock.json"
-      - "DOCKER_AGENTS.md"
-      - ".github/workflows/build-and-push.yml"
   workflow_dispatch:
     inputs:
       reason:
