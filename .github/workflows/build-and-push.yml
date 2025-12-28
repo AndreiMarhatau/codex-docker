@@ -5,6 +5,9 @@ on:
     branches: [ main ]
     paths:
       - "Dockerfile"
+      - "codex-entrypoint.sh"
+      - "codex-docker"
+      - "codex-docker/**"
       - "package.json"
       - "package-lock.json"
       - "DOCKER_AGENTS.md"
