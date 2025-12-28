@@ -16,7 +16,8 @@ if [[ -f "${host_codex_home}/AGENTS.override.md" ]] || [[ -f "${base_agents_file
       printf "\n" >> "${combined_agents_file}"
     fi
   done
-  mv "${combined_agents_file}" "${codex_home}/AGENTS.override.md"
+  cat "${combined_agents_file}" > "${codex_home}/AGENTS.override.md"
+  rm -f "${combined_agents_file}"
 fi
 
 exec "$@"
