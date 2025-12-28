@@ -21,6 +21,8 @@ jobs:
           filters: |
             docker:
               - "Dockerfile"
+              - "codex-entrypoint.sh"
+              - "codex-docker"
               - "package.json"
               - "package-lock.json"
               - "DOCKER_AGENTS.md"
