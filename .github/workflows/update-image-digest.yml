@@ -59,7 +59,7 @@ jobs:
           path = pathlib.Path("codex-docker")
           data = path.read_text()
           pattern = r'IMAGE_NAME="\${IMAGE_NAME:-[^"]+}"'
-          replacement = f'IMAGE_NAME="${{IMAGE_NAME:-{image}}}"'
+          replacement = f'IMAGE_NAME="$' + '{IMAGE_NAME:-' + image + '}"'
           updated = re.sub(pattern, replacement, data)
           if updated != data:
               path.write_text(updated)
