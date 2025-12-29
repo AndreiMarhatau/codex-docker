@@ -1,0 +1,56 @@
+name: Update Homebrew formula
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+
+      - name: Update formula
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${TAG}" ]]; then
+            echo "Missing release tag." >&2
+            exit 1
+          fi
+          tarball="https://github.com/${REPO}/archive/refs/tags/${TAG}.tar.gz"
+          curl -L -o /tmp/release.tar.gz "${tarball}"
+          sha256="$(sha256sum /tmp/release.tar.gz | awk '{print $1}')"
+          formula="Formula/codex-docker.rb"
+          perl -0pi -e "s|url \".*\"|url \"${tarball}\"|; s|sha256 \".*\"|sha256 \"${sha256}\"|" "${formula}"
+
+      - name: Create pull request
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Bump Homebrew formula to ${{ github.ref_name }}
+          title: Bump Homebrew formula to ${{ github.ref_name }}
+          body: Automated update for the Homebrew formula URL and sha256.
+          branch: automation/homebrew-formula
+          delete-branch: true
+
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        continue-on-error: true
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          merge-method: squash
