@@ -1,0 +1,48 @@
+name: Update Homebrew formula
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+
+      - name: Update formula
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${TAG}" ]]; then
+            echo "Missing release tag." >&2
+            exit 1
+          fi
+          tarball="https://github.com/${REPO}/archive/refs/tags/${TAG}.tar.gz"
+          curl -L -o /tmp/release.tar.gz "${tarball}"
+          sha256="$(sha256sum /tmp/release.tar.gz | awk '{print $1}')"
+          formula="Formula/codex-docker.rb"
+          perl -0pi -e "s|url \".*\"|url \"${tarball}\"|; s|sha256 \".*\"|sha256 \"${sha256}\"|" "${formula}"
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No formula changes to commit."
+            exit 0
+          fi
+          git config user.email "codex@openai.com"
+          git config user.name "Codex Agent"
+          git add -A
+          git commit -m "Bump Homebrew formula to ${GITHUB_REF_NAME}"
+          git push
