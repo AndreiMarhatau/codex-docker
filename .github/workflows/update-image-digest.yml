@@ -35,9 +35,10 @@ jobs:
         id: digest
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          IMAGE_REPO: ghcr.io/${{ github.repository }}
         run: |
-          image_tag="${IMAGE_REPO}:sha-${HEAD_SHA}"
+          image_repo="$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          image_repo="ghcr.io/${image_repo}"
+          image_tag="${image_repo}:sha-${HEAD_SHA}"
           digest="$(docker buildx imagetools inspect "${image_tag}" | awk '/Digest:/ {print $2; exit}')"
           if [[ -z "${digest}" ]]; then
             echo "Digest not found for ${image_tag}" >&2
@@ -47,7 +48,7 @@ jobs:
 
       - name: Update codex-docker image reference
         env:
-          IMAGE_REPO: ghcr.io/${{ github.repository }}
+          IMAGE_REPO: ${{ github.repository }}
           DIGEST: ${{ steps.digest.outputs.digest }}
         run: |
           python - <<'PY'
@@ -55,7 +56,8 @@ jobs:
           import pathlib
           import re
 
-          image = f"{os.environ['IMAGE_REPO']}@{os.environ['DIGEST']}"
+          image_repo = os.environ["IMAGE_REPO"].lower()
+          image = f"ghcr.io/{image_repo}@{os.environ['DIGEST']}"
           path = pathlib.Path("codex-docker")
           data = path.read_text()
           pattern = r'IMAGE_NAME="\${IMAGE_NAME:-[^"]+}"'
