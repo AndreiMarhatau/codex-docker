@@ -35,10 +35,16 @@ jobs:
 
       - name: Resolve image digest
         id: digest
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           image_repo="$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
           image_repo="ghcr.io/${image_repo}"
-          image_tag="${image_repo}:sha-${HEAD_SHA}"
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            image_tag="${image_repo}:latest"
+          else
+            image_tag="${image_repo}:sha-${HEAD_SHA}"
+          fi
           digest="$(docker buildx imagetools inspect "${image_tag}" | awk '/Digest:/ {print $2; exit}')"
           if [[ -z "${digest}" ]]; then
             echo "Digest not found for ${image_tag}" >&2
