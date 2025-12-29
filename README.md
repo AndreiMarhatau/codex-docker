@@ -17,6 +17,12 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 - Make the helper reachable everywhere: add the repo to `PATH` (`export PATH="$PATH:/path/to/codex-docker-repo"`) or symlink it (`ln -s "$(pwd)/codex-docker" /usr/local/bin/codex-docker`).
 - Run `codex-docker` from any repo. Docker will pull `ghcr.io/andreimarhatau/codex-docker:latest` on first use. The script mounts the current directory to `/workspace/<folder>` and your `~/.codex` to `/root/.codex` so that you can reuse credentials and history, then forwards all args to the Codex CLI.
 
+## Install with Homebrew
+```sh
+brew tap andreimarhatau/codex-docker
+brew install codex-docker
+```
+
 ## Use the host Docker engine (optional)
 The image ships with the Docker CLI. To let Codex run Docker commands against your host engine, mount the host socket into the container:
 ```sh
