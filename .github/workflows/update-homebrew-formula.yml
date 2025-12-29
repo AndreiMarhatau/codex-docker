@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   bump:
@@ -34,15 +35,22 @@ jobs:
           formula="Formula/codex-docker.rb"
           perl -0pi -e "s|url \".*\"|url \"${tarball}\"|; s|sha256 \".*\"|sha256 \"${sha256}\"|" "${formula}"
 
-      - name: Commit and push
-        run: |
-          set -euo pipefail
-          if git diff --quiet; then
-            echo "No formula changes to commit."
-            exit 0
-          fi
-          git config user.email "codex@openai.com"
-          git config user.name "Codex Agent"
-          git add -A
-          git commit -m "Bump Homebrew formula to ${GITHUB_REF_NAME}"
-          git push
+      - name: Create pull request
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Bump Homebrew formula to ${{ github.ref_name }}
+          title: Bump Homebrew formula to ${{ github.ref_name }}
+          body: Automated update for the Homebrew formula URL and sha256.
+          branch: automation/homebrew-formula
+          delete-branch: true
+
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        continue-on-error: true
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          merge-method: squash
