@@ -49,7 +49,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest
-            type=sha
+            type=sha,format=long
           flavor: |
             suffix=-amd64
 
@@ -101,7 +101,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest
-            type=sha
+            type=sha,format=long
           flavor: |
             suffix=-arm64
 
@@ -143,7 +143,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest
-            type=sha
+            type=sha,format=long
 
       - name: Create and push multi-arch manifest
         run: |
