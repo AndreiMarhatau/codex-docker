@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,3 +70,17 @@ jobs:
           tag_name: ${{ steps.version.outputs.next_tag }}
           target_commitish: ${{ inputs.branch }}
           generate_release_notes: true
+
+      - name: Trigger Homebrew formula update
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "update-homebrew-formula.yml",
+              ref: "main",
+              inputs: {
+                tag: "${{ steps.version.outputs.next_tag }}"
+              }
+            });
