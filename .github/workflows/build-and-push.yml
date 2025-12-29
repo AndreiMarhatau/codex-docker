@@ -152,3 +152,69 @@ jobs:
             echo "Creating manifest for ${tag}"
             docker buildx imagetools create -t "${tag}" "${tag}-amd64" "${tag}-arm64"
           done <<< "$tags"
+
+  update-pinned-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+    needs:
+      - manifest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve manifest digest
+        id: digest
+        run: |
+          token=$(curl -s "https://ghcr.io/token?service=ghcr.io&scope=repository:${{ github.repository }}:pull" | jq -r .token)
+          if [[ -z "${token}" || "${token}" == "null" ]]; then
+            echo "Failed to fetch GHCR token." >&2
+            exit 1
+          fi
+          digest=$(curl -sI \
+            -H "Authorization: Bearer ${token}" \
+            -H "Accept: application/vnd.oci.image.index.v1+json" \
+            "https://ghcr.io/v2/${{ github.repository }}/manifests/latest" \
+            | tr -d '\r' \
+            | awk -F': ' 'tolower($1)=="docker-content-digest"{print $2}')
+          if [[ -z "${digest}" ]]; then
+            echo "Failed to resolve manifest digest." >&2
+            exit 1
+          fi
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Update pinned image in helper script
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}@${{ steps.digest.outputs.digest }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+
+          path = "codex-docker"
+          image = os.environ["IMAGE"]
+          with open(path, "r", encoding="utf-8") as handle:
+            data = handle.read()
+          updated = re.sub(
+            r'^IMAGE_NAME_DEFAULT="[^"]+"$',
+            f'IMAGE_NAME_DEFAULT="{image}"',
+            data,
+            flags=re.M,
+          )
+          if updated != data:
+            with open(path, "w", encoding="utf-8") as handle:
+              handle.write(updated)
+          PY
+
+      - name: Commit updated image pin
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "Codex Agent"
+          git config user.email "codex@openai.com"
+          git add codex-docker
+          git commit -m "Pin codex-docker image digest"
+          git push

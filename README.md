@@ -15,7 +15,7 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 
 ## Prepare & run
 - Make the helper reachable everywhere: add the repo to `PATH` (`export PATH="$PATH:/path/to/codex-docker-repo"`) or symlink it (`ln -s "$(pwd)/codex-docker" /usr/local/bin/codex-docker`).
-- Run `codex-docker` from any repo. Docker will pull `ghcr.io/andreimarhatau/codex-docker:latest` on first use. The script mounts the current directory to `/workspace/<folder>` and your `~/.codex` to `/root/.codex` so that you can reuse credentials and history, then forwards all args to the Codex CLI.
+- Run `codex-docker` from any repo. Docker will pull the pinned image digest defined in `codex-docker` on first use (override with `IMAGE_NAME=ghcr.io/andreimarhatau/codex-docker:latest` if you want a floating tag). The script mounts the current directory to `/workspace/<folder>` and your `~/.codex` to `/root/.codex` so that you can reuse credentials and history, then forwards all args to the Codex CLI.
 
 ## Install with Homebrew
 ```sh
@@ -35,10 +35,14 @@ CODEX_MOUNT_PATHS=/var/run/docker.sock codex-docker
 If your Docker socket lives elsewhere, pass the full path instead (the socket will be mounted at the same path inside the container).
 
 ## Update to the latest image
-This repo runs dependabot every day to update base codex-universal image, and Codex CLI version.
-- Refresh the tag you use (defaults shown):
+This repo runs dependabot every day to update base codex-universal image, and Codex CLI version. The `codex-docker` helper is automatically updated to pin the new image digest after each successful build-and-push.
+- Pull the latest helper script updates:
   ```sh
-  docker pull "ghcr.io/andreimarhatau/codex-docker:latest"
+  git pull
+  ```
+- Refresh the pinned image digest (defaults shown in `codex-docker`):
+  ```sh
+  docker pull "$(awk -F'\"' '/IMAGE_NAME_DEFAULT=/{print $2}' codex-docker)"
   ```
 - Clear dangling layers:
   ```sh
