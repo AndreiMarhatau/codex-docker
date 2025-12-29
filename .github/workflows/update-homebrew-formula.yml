@@ -41,7 +41,7 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
           commit-message: Bump Homebrew formula to ${{ inputs.tag }}
           title: Bump Homebrew formula to ${{ inputs.tag }}
           body: Automated update for the Homebrew formula URL and sha256.
@@ -53,6 +53,6 @@ jobs:
         continue-on-error: true
         uses: peter-evans/enable-pull-request-automerge@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
           pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
           merge-method: squash
