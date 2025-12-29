@@ -1,9 +1,11 @@
 name: Update Homebrew formula
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.2.3)"
+        required: true
 
 permissions:
   contents: write
@@ -21,7 +23,7 @@ jobs:
 
       - name: Update formula
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -40,8 +42,8 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: Bump Homebrew formula to ${{ github.ref_name }}
-          title: Bump Homebrew formula to ${{ github.ref_name }}
+          commit-message: Bump Homebrew formula to ${{ inputs.tag }}
+          title: Bump Homebrew formula to ${{ inputs.tag }}
           body: Automated update for the Homebrew formula URL and sha256.
           branch: automation/homebrew-formula
           delete-branch: true
