@@ -22,10 +22,6 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 brew tap andreimarhatau/codex-docker
 brew install codex-docker
 ```
-One-command install:
-```sh
-brew install andreimarhatau/codex-docker/codex-docker
-```
 
 ## Use the host Docker engine (optional)
 The image ships with the Docker CLI. To let Codex run Docker commands against your host engine, mount the host socket into the container:
