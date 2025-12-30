@@ -14,11 +14,14 @@ permissions:
 jobs:
   bump:
     runs-on: ubuntu-latest
+    env:
+      TAP_REPO: AndreiMarhatau/homebrew-codex-docker
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
+          repository: ${{ env.TAP_REPO }}
           ref: main
 
       - name: Update formula
