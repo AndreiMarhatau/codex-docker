@@ -18,8 +18,6 @@ else
   echo "Warning: ${HOME}/.codex not found; running without host Codex config." >&2
 fi
 
-append_agents_file="${CODEX_AGENTS_APPEND_FILE:-}"
-combined_agents_file=""
 mount_paths_var="${CODEX_MOUNT_PATHS:-}"
 mount_paths_ro_var="${CODEX_MOUNT_PATHS_RO:-}"
 artifacts_host_dir="${CODEX_ARTIFACTS_DIR:-}"
@@ -27,19 +25,6 @@ artifacts_target="/root/.artifacts"
 
 temp_dir="$(mktemp -d)"
 cleanup_paths+=( "${temp_dir}" )
-combined_agents_file="${temp_dir}/AGENTS.override.md"
-touch "${combined_agents_file}"
-extra_mounts+=( -v "${combined_agents_file}:/root/.codex/AGENTS.override.md" )
-
-if [[ -n "${append_agents_file}" ]]; then
-  if [[ -f "${append_agents_file}" ]]; then
-    append_temp_file="${temp_dir}/AGENTS.append.md"
-    cat "${append_agents_file}" > "${append_temp_file}"
-    extra_mounts+=( -v "${append_temp_file}:/root/.codex-append/AGENTS.append.md:ro" )
-  else
-    echo "Warning: CODEX_AGENTS_APPEND_FILE '${append_agents_file}' not found; skipping append." >&2
-  fi
-fi
 
 if [[ -n "${mount_paths_var}" ]]; then
   IFS=':' read -r -a mount_paths <<< "${mount_paths_var}"
