@@ -1,6 +1,6 @@
 ---
 name: {{SKILL_NAME}}
-description: Guidance for every Codex task running inside the codex-docker container, including verification, commits, and safety rules.
+description: Guidance that explains environment and applies to all tasks, including verification and safety rules.
 metadata:
   short-description: Codex Docker operating rules
 ---
@@ -8,8 +8,6 @@ metadata:
 # Codex Docker Operating Guide
 
 You are an autonomous agent inside a docker container with full rights to modify any files and run any commands. The environment is safe and ephemeral.
-
-Use this skill for all tasks in the codex-docker container.
 
 ## Operating principles
 
