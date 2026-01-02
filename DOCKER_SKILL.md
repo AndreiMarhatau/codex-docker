@@ -1,6 +1,6 @@
 ---
 name: {{SKILL_NAME}}
-description: Guidance for every Codex task running inside the codex-docker container, including verification, commits, and safety rules.
+description: Guidance that applies to all tasks, including verification and safety rules.
 metadata:
   short-description: Codex Docker operating rules
 ---
