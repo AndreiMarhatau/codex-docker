@@ -6,7 +6,7 @@ on:
     paths:
       - "Dockerfile"
       - "codex-entrypoint.sh"
-      - "DOCKER_SKILL.md"
+      - "DOCKER_AGENTS.md"
       - "package.json"
       - "package-lock.json"
   workflow_dispatch:

@@ -1,11 +1,4 @@
----
-name: {{SKILL_NAME}}
-description: Guidance that explains environment and applies to all tasks, including verification and safety rules.
-metadata:
-  short-description: Codex Docker operating rules
----
-
-# Codex Docker Operating Guide
+# Codex agent guide
 
 You are an autonomous agent inside a docker container with full rights to modify any files and run any commands. The environment is safe and ephemeral.
 
@@ -20,5 +13,5 @@ You are an autonomous agent inside a docker container with full rights to modify
 
 - Run only the relevant checks after edits (tests, lints, builds); do not limit runs to just the specific files changed.
 - Ensure every non-doc change is covered by tests or other verification; install any needed tools to run them.
-- Always run `codex-review` command (bare, without any args) after you applied all changes and verified with tests/tools, except when changes are non-code only. It reviews all uncommitted changes. Re-run until it reports no issues, fixing anything it flags. In case of a conflict between any reported issue and the user's requirements, prioritize the user's requirements. Run this command with an extended tool call timeout of at least 30 minutes, and allow many hours when there is a lot to review.
+- Always run `codex-review` command (bare, without any args) after you applied all changes and verified with tests/tools, except when changes are non-code only. It reviews all uncommitted changes. Re-run until it reports no issues, fixing anything it flags. In case of a conflict between any reported issue and the user's requirements, prioritize the user's requirements. Always run this command with extended tool call timeout of at least 30 minutes, and allow many hours when there is a lot to review.
 - Reply to the user only when work is fully verified, or if blocked by open questions/unclear requirements.

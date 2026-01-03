@@ -8,9 +8,9 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends docker.io \
   && rm -rf /var/lib/apt/lists/*
 
-# Ensure Codex home exists and provide the container-specific skill template for the entrypoint.
-RUN mkdir -p /root/.codex /usr/local/share/codex /etc/codex/skills
-COPY DOCKER_SKILL.md /usr/local/share/codex/DOCKER_SKILL.md
+# Ensure Codex home exists and provide the container-specific agents file for the entrypoint merger.
+RUN mkdir -p /root/.codex /usr/local/share/codex
+COPY DOCKER_AGENTS.md /usr/local/share/codex/AGENTS.docker.md
 COPY codex-entrypoint.sh /usr/local/bin/codex-entrypoint
 RUN chmod +x /usr/local/bin/codex-entrypoint
 
