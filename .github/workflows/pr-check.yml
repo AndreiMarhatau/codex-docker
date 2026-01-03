@@ -22,7 +22,7 @@ jobs:
             docker:
               - "Dockerfile"
               - "codex-entrypoint.sh"
-              - "DOCKER_SKILL.md"
+              - "DOCKER_AGENTS.md"
               - "package.json"
               - "package-lock.json"
 
