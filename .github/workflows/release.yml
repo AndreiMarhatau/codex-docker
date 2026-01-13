@@ -84,3 +84,15 @@ jobs:
                 tag: "${{ steps.version.outputs.next_tag }}"
               }
             });
+
+      - name: Trigger orchestrator build workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PAT }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: "AndreiMarhatau",
+              repo: "codex-docker-orchestrator",
+              workflow_id: "docker-build.yml",
+              ref: "main"
+            });
