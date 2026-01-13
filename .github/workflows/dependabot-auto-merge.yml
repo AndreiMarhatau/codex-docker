@@ -20,7 +20,7 @@ jobs:
       - name: Find PR number from branch
         id: find-pr
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           pr_number=$(gh pr list \
@@ -41,7 +41,7 @@ jobs:
         id: ensure-author
         if: steps.find-pr.outputs.number != ''
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT }}
           PR_NUMBER: ${{ steps.find-pr.outputs.number }}
         run: |
           author=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json author --jq '.author.login')
@@ -56,7 +56,7 @@ jobs:
       - name: Auto-merge Dependabot PR
         if: steps.ensure-author.outputs.ok == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT }}
           PR_NUMBER: ${{ steps.find-pr.outputs.number }}
         run: |
           gh pr merge "$PR_NUMBER" --squash --auto --repo "${{ github.repository }}"
