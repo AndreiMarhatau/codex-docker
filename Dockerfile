@@ -1,4 +1,4 @@
-FROM ghcr.io/openai/codex-universal@sha256:09bc9c19c097d240ed2e8a9ccb37ba1ff9cc9963b0526b9fce91d7f199fbf343 AS release
+FROM ghcr.io/openai/codex-universal@sha256:956c2e7dd1590fc12763f172579d777464312006b9fa1f6405f5f1b78b8ea2dc AS release
 
 WORKDIR /opt/codex
 COPY package.json package-lock.json ./
