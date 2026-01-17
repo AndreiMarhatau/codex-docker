@@ -34,6 +34,14 @@ CODEX_MOUNT_PATHS=/var/run/docker.sock codex-docker
 ```
 If your Docker socket lives elsewhere, pass the full path instead (the socket will be mounted at the same path inside the container).
 
+## Pass through environment variables
+- Any non-system environment variables from the host are passed into the container by default.
+- Example: `FOO=BAR codex-docker` makes `FOO=BAR` available inside the container.
+- To explicitly control which vars are forwarded (including ones normally skipped), set `CODEX_PASSTHROUGH_ENV`:
+  ```sh
+  CODEX_PASSTHROUGH_ENV=FOO,BAR,PATH FOO=BAR BAR=BAZ codex-docker
+  ```
+
 ## Update to the latest image
 This repo runs dependabot every day to update base codex-universal image, and Codex CLI version.
 - Refresh the tag you use (defaults shown):
