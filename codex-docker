@@ -23,6 +23,43 @@ mount_paths_ro_var="${CODEX_MOUNT_PATHS_RO:-}"
 artifacts_host_dir="${CODEX_ARTIFACTS_DIR:-}"
 artifacts_target="/root/.artifacts"
 
+passthrough_envs_var="${CODEX_PASSTHROUGH_ENV:-}"
+extra_envs=()
+should_passthrough_env() {
+  local env_name="$1"
+  case "${env_name}" in
+    ""|_|HOME|PATH|PWD|OLDPWD|SHELL|SHLVL|TERM|TMP|TEMP|TMPDIR|USER|LOGNAME|MAIL)
+      return 1
+      ;;
+    LANG|LC_*|COLORTERM|LS_COLORS|HOSTNAME|HOST|DISPLAY|SESSION_MANAGER|WAYLAND_DISPLAY)
+      return 1
+      ;;
+    XDG_*|SSH_*|GPG_*|DBUS_*|BASH*|ZSH*|PROMPT*|PS1|PS2|PS4)
+      return 1
+      ;;
+    CODEX_*|IMAGE_NAME|CONTAINER_NAME|DOCKER_*|EDITOR|VISUAL|PAGER|MANPAGER|LESS*)
+      return 1
+      ;;
+  esac
+  return 0
+}
+
+if [[ -n "${passthrough_envs_var}" ]]; then
+  IFS=',' read -r -a passthrough_envs <<< "${passthrough_envs_var}"
+  for env_name in "${passthrough_envs[@]}"; do
+    if [[ -n "${env_name}" ]]; then
+      extra_envs+=( -e "${env_name}" )
+    fi
+  done
+else
+  while IFS= read -r -d '' env_entry; do
+    env_name="${env_entry%%=*}"
+    if should_passthrough_env "${env_name}"; then
+      extra_envs+=( -e "${env_name}" )
+    fi
+  done < <(env -0)
+fi
+
 temp_dir="$(mktemp -d)"
 cleanup_paths+=( "${temp_dir}" )
 
@@ -107,4 +144,5 @@ docker run --rm -i \
   -v "${PWD}:${container_workspace}" \
   -w "${container_workspace}" \
   "${extra_mounts[@]}" \
+  "${extra_envs[@]}" \
   "${IMAGE_NAME}" "$@"
