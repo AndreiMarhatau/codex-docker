@@ -20,6 +20,7 @@ fi
 
 mount_paths_var="${CODEX_MOUNT_PATHS:-}"
 mount_paths_ro_var="${CODEX_MOUNT_PATHS_RO:-}"
+mount_maps_ro_var="${CODEX_MOUNT_MAPS_RO:-}"
 artifacts_host_dir="${CODEX_ARTIFACTS_DIR:-}"
 artifacts_target="/root/.artifacts"
 
@@ -102,6 +103,39 @@ if [[ -n "${mount_paths_ro_var}" ]]; then
       extra_mounts+=( -v "${mount_path}:${mount_path}:ro" )
     else
       echo "Warning: CODEX_MOUNT_PATHS_RO entry '${mount_path}' not found; skipping mount." >&2
+    fi
+  done
+fi
+
+if [[ -n "${mount_maps_ro_var}" ]]; then
+  IFS=':' read -r -a mount_maps_ro <<< "${mount_maps_ro_var}"
+  for mount_map in "${mount_maps_ro[@]}"; do
+    if [[ -z "${mount_map}" ]]; then
+      continue
+    fi
+
+    if [[ "${mount_map}" != *=* ]]; then
+      echo "Warning: CODEX_MOUNT_MAPS_RO entry '${mount_map}' is invalid; expected '/host/path=/container/path'." >&2
+      continue
+    fi
+
+    host_path="${mount_map%%=*}"
+    container_path="${mount_map#*=}"
+
+    if [[ -z "${host_path}" || -z "${container_path}" ]]; then
+      echo "Warning: CODEX_MOUNT_MAPS_RO entry '${mount_map}' is invalid; expected '/host/path=/container/path'." >&2
+      continue
+    fi
+
+    if [[ "${container_path}" != /* ]]; then
+      echo "Warning: CODEX_MOUNT_MAPS_RO container path '${container_path}' must be absolute; skipping mount." >&2
+      continue
+    fi
+
+    if [[ -e "${host_path}" ]]; then
+      extra_mounts+=( -v "${host_path}:${container_path}:ro" )
+    else
+      echo "Warning: CODEX_MOUNT_MAPS_RO host path '${host_path}' not found; skipping mount." >&2
     fi
   done
 fi
