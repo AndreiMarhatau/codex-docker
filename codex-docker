@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_NAME="${IMAGE_NAME:-ghcr.io/andreimarhatau/codex-docker@sha256:b5683a7491e38b083168761a09210ad474bd4aa81716593dd8407df47f333092}"
+IMAGE_NAME="${IMAGE_NAME:-ghcr.io/andreimarhatau/codex-docker@sha256:7afbe96e7e35c25cffd25ae7eae45ca116df74970cc83cba8f153c08a835ca23}"
 
 extra_mounts=()
 cleanup_paths=()
