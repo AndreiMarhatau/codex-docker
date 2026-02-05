@@ -72,4 +72,5 @@ This repo runs dependabot every day to update base codex-universal image, and Co
 - Set `CODEX_AGENTS_APPEND_FILE=/path/to/extra.md` to append extra instructions for a single run.
 - Set `CODEX_MOUNT_PATHS=/abs/path1:/abs/path2` to bind-mount additional host paths into the container at the same absolute locations.
 - Set `CODEX_MOUNT_PATHS_RO=/abs/path1:/abs/path2` to bind-mount additional host paths into the container read-only.
+- Set `CODEX_MOUNT_MAPS=/host/path=/container/path` to bind-mount host paths into different writable container paths. Multiple mappings are supported via `:` separators, for example: `CODEX_MOUNT_MAPS=/opt/data=/mnt/data:/tmp/cache=/var/cache/shared`.
 - Set `CODEX_MOUNT_MAPS_RO=/host/path=/container/path` to bind-mount host paths into different read-only container paths. Multiple mappings are supported via `:` separators, for example: `CODEX_MOUNT_MAPS_RO=/var/run/docker.sock=/tmp/docker.sock:/opt/data=/mnt/data`.
