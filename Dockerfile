@@ -3,9 +3,9 @@ FROM ghcr.io/openai/codex-universal@sha256:956c2e7dd1590fc12763f172579d777464312
 WORKDIR /opt/codex
 COPY package.json package-lock.json ./
 
-# Install Docker CLI so Codex can talk to a mounted host Docker socket.
+# Install Docker CLI + Compose plugin so Codex can talk to a mounted host Docker socket.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends docker.io \
+  && apt-get install -y --no-install-recommends docker.io docker-compose-v2 \
   && rm -rf /var/lib/apt/lists/*
 
 # Ensure Codex home exists and provide the container-specific agents file for the entrypoint merger.
@@ -49,6 +49,8 @@ ENTRYPOINT ["/usr/local/bin/codex-entrypoint", "codex", "--dangerously-bypass-ap
 # CI smoke-test target: build with --target ci-smoke to verify the exact Codex commands we ship.
 FROM release AS ci-smoke
 RUN codex --dangerously-bypass-approvals-and-sandbox --search --version \
+  && docker --version \
+  && docker compose version \
   && codex exec --dangerously-bypass-approvals-and-sandbox --json -c features.web_search_request=true review --help >/dev/null \
   && jq --version >/dev/null \
   && bash -n /usr/local/bin/codex-review \
