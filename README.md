@@ -28,7 +28,7 @@ brew install andreimarhatau/codex-docker/codex-docker
 ```
 
 ## Use the host Docker engine (optional)
-The image ships with the Docker CLI. To let Codex run Docker commands against your host engine, mount the host socket into the container:
+The image ships with the Docker CLI and Docker Compose plugin (`docker compose`). To let Codex run Docker commands against your host engine, mount the host socket into the container:
 ```sh
 CODEX_MOUNT_PATHS=/var/run/docker.sock codex-docker
 ```
