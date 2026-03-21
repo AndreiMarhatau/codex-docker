@@ -11,7 +11,7 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 - Sandbox, that's utilized by Codex, is not supported inside docker containers. Codex runs with --dangerously-bypass-approvals-and-sandbox.
 
 ## Additional features
-- The image injects a short container-specific developer note only when the user has not already set `developer_instructions` in their own Codex config or via CLI override. AGENTS discovery otherwise remains native Codex behavior.
+- The image injects a short container-specific developer note only when the user has not already set `developer_instructions` in their own Codex config or via CLI override.
 
 ## Prepare & run
 - Make the helper reachable everywhere: add the repo to `PATH` (`export PATH="$PATH:/path/to/codex-docker-repo"`) or symlink it (`ln -s "$(pwd)/codex-docker" /usr/local/bin/codex-docker`).
@@ -67,7 +67,6 @@ This repo runs dependabot every day to update base codex-universal image, and Co
 ## Container developer note
 - The image ships [`CONTAINER_DEVELOPER_INSTRUCTIONS.md`](./CONTAINER_DEVELOPER_INSTRUCTIONS.md) as `/usr/local/share/codex/developer-instructions.md`.
 - On startup, the entrypoint injects that text via `-c developer_instructions=...` only when the user has not already provided `developer_instructions` in `~/.codex/config.toml` or via a CLI `-c/--config developer_instructions=...` override.
-- The helper no longer rewrites `~/.codex/AGENTS.override.md` or merges AGENTS files. User AGENTS files are read by Codex exactly as usual.
 - Set `CODEX_MOUNT_PATHS=/abs/path1:/abs/path2` to bind-mount additional host paths into the container at the same absolute locations.
 - Set `CODEX_MOUNT_PATHS_RO=/abs/path1:/abs/path2` to bind-mount additional host paths into the container read-only.
 - Set `CODEX_MOUNT_MAPS=/host/path=/container/path` to bind-mount host paths into different writable container paths. Multiple mappings are supported via `:` separators, for example: `CODEX_MOUNT_MAPS=/opt/data=/mnt/data:/tmp/cache=/var/cache/shared`.
