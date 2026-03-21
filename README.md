@@ -11,7 +11,7 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 - Sandbox, that's utilized by Codex, is not supported inside docker containers. Codex runs with --dangerously-bypass-approvals-and-sandbox.
 
 ## Additional features
-- Codex is instructed to run "codex-review" command which is just an alias to "codex exec review" command on unmerged changes and is instructed to do so after all relevant checks and edits, just before ending the task. This increases usage consumption. I personally found it very helpful, it eliminates 90% of errors before running into them in runtime or while testing end-to-end.
+- The image injects a short container-specific developer note only when the user has not already set `developer_instructions` in their own Codex config or via CLI override.
 
 ## Prepare & run
 - Make the helper reachable everywhere: add the repo to `PATH` (`export PATH="$PATH:/path/to/codex-docker-repo"`) or symlink it (`ln -s "$(pwd)/codex-docker" /usr/local/bin/codex-docker`).
@@ -62,14 +62,11 @@ This repo runs dependabot every day to update base codex-universal image, and Co
 ## Dependencies of the repository
 - Base image: `ghcr.io/openai/codex-universal` (pulled during build).
 - CLI: `@openai/codex` installed globally inside the image.
-- Entrypoint arguments: `codex --dangerously-bypass-approvals-and-sandbox --search`.
-- Codex review arguments: `codex exec --dangerously-bypass-approvals-and-sandbox --json -c features.web_search_request=true review --uncommitted | jq -rs '[.[] | select(.type==\"item.completed\" and .item.type==\"agent_message\") | .item.text] | last // \"\"'`
+- Entrypoint arguments: `codex --dangerously-bypass-approvals-and-sandbox`.
 
-## Container-only AGENTS override
-- The image ships `DOCKER_AGENTS.md` as `/usr/local/share/codex/AGENTS.docker.md`.
-- The helper mounts your host `~/.codex` read-write at `/root/.codex` so history and config persist across runs. It also mounts the same directory read-only at `/root/.codex-host` so the host `AGENTS.override.md` can be read without being overwritten.
-- On startup, the container entrypoint merges (in order): host `~/.codex-host/AGENTS.override.md` (if present), baked-in `AGENTS.docker.md`, and `CODEX_AGENTS_APPEND_FILE` (if provided). The merged file is written to `/root/.codex/AGENTS.override.md` via a temporary mount so the host override file stays intact.
-- Set `CODEX_AGENTS_APPEND_FILE=/path/to/extra.md` to append extra instructions for a single run.
+## Container developer note
+- The image ships [`CONTAINER_DEVELOPER_INSTRUCTIONS.md`](./CONTAINER_DEVELOPER_INSTRUCTIONS.md) as `/usr/local/share/codex/developer-instructions.md`.
+- On startup, the entrypoint injects that text via `-c developer_instructions=...` only when the user has not already provided `developer_instructions` in `~/.codex/config.toml` or via a CLI `-c/--config developer_instructions=...` override.
 - Set `CODEX_MOUNT_PATHS=/abs/path1:/abs/path2` to bind-mount additional host paths into the container at the same absolute locations.
 - Set `CODEX_MOUNT_PATHS_RO=/abs/path1:/abs/path2` to bind-mount additional host paths into the container read-only.
 - Set `CODEX_MOUNT_MAPS=/host/path=/container/path` to bind-mount host paths into different writable container paths. Multiple mappings are supported via `:` separators, for example: `CODEX_MOUNT_MAPS=/opt/data=/mnt/data:/tmp/cache=/var/cache/shared`.

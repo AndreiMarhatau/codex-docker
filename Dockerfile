@@ -8,9 +8,9 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends docker.io docker-compose-v2 \
   && rm -rf /var/lib/apt/lists/*
 
-# Ensure Codex home exists and provide the container-specific agents file for the entrypoint merger.
+# Ensure Codex home exists and provide the container-specific developer instructions.
 RUN mkdir -p /root/.codex /usr/local/share/codex
-COPY DOCKER_AGENTS.md /usr/local/share/codex/AGENTS.docker.md
+COPY CONTAINER_DEVELOPER_INSTRUCTIONS.md /usr/local/share/codex/developer-instructions.md
 COPY codex-entrypoint.sh /usr/local/bin/codex-entrypoint
 RUN chmod +x /usr/local/bin/codex-entrypoint
 
@@ -33,26 +33,15 @@ RUN bash -lc '. $NVM_DIR/nvm.sh && nvm use default \
   && ln -sf "${BIN_DIR}/node" /usr/local/bin/node \
   && ln -sf "${BIN_DIR}/playwright" /usr/local/bin/playwright'
 
-# Provide a convenient helper to run the required uncommitted-changes review inside the container.
-RUN cat <<'EOF' >/usr/local/bin/codex-review \
-  && chmod +x /usr/local/bin/codex-review \
-  && ln -sf /usr/local/bin/codex-review /usr/local/bin/review
-#!/usr/bin/env bash
-set -euo pipefail
-codex exec --dangerously-bypass-approvals-and-sandbox --json -c features.web_search_request=true review --uncommitted \
-  | jq -rs '[.[] | select(.type=="item.completed" and .item.type=="agent_message") | .item.text] | last // ""'
-EOF
-
-# Launch Codex by default with a bypassed sandbox and search enabled.
-ENTRYPOINT ["/usr/local/bin/codex-entrypoint", "codex", "--dangerously-bypass-approvals-and-sandbox", "--search"]
+# Launch Codex by default with a bypassed sandbox.
+ENTRYPOINT ["/usr/local/bin/codex-entrypoint", "codex", "--dangerously-bypass-approvals-and-sandbox"]
 
 # CI smoke-test target: build with --target ci-smoke to verify the exact Codex commands we ship.
 FROM release AS ci-smoke
-RUN codex --dangerously-bypass-approvals-and-sandbox --search --version \
+RUN codex --dangerously-bypass-approvals-and-sandbox --version \
   && docker --version \
   && docker compose version \
-  && codex exec --dangerously-bypass-approvals-and-sandbox --json -c features.web_search_request=true review --help >/dev/null \
-  && jq --version >/dev/null \
-  && bash -n /usr/local/bin/codex-review \
+  && codex review --help >/dev/null \
   && bash -n /usr/local/bin/codex-entrypoint \
+  && python3 --version \
   && node --version
