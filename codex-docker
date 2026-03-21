@@ -14,6 +14,8 @@ mount_paths_var="${CODEX_MOUNT_PATHS:-}"
 mount_paths_ro_var="${CODEX_MOUNT_PATHS_RO:-}"
 mount_maps_var="${CODEX_MOUNT_MAPS:-}"
 mount_maps_ro_var="${CODEX_MOUNT_MAPS_RO:-}"
+volume_mounts_var="${CODEX_VOLUME_MOUNTS:-}"
+workspace_dir_var="${CODEX_WORKSPACE_DIR:-}"
 artifacts_host_dir="${CODEX_ARTIFACTS_DIR:-}"
 artifacts_target="/root/.artifacts"
 
@@ -148,6 +150,41 @@ if [[ -n "${mount_maps_var}" ]]; then
   done
 fi
 
+if [[ -n "${volume_mounts_var}" ]]; then
+  IFS=',' read -r -a volume_mounts <<< "${volume_mounts_var}"
+  for volume_mount in "${volume_mounts[@]}"; do
+    if [[ -z "${volume_mount}" ]]; then
+      continue
+    fi
+
+    if [[ "${volume_mount}" != *=* ]]; then
+      echo "Warning: CODEX_VOLUME_MOUNTS entry '${volume_mount}' is invalid; expected 'volume_name=/mount/path[:ro]'." >&2
+      continue
+    fi
+
+    volume_name="${volume_mount%%=*}"
+    mount_spec="${volume_mount#*=}"
+    readonly_suffix=""
+    container_path="${mount_spec}"
+    if [[ "${mount_spec}" == *:ro ]]; then
+      readonly_suffix=",readonly"
+      container_path="${mount_spec%:ro}"
+    fi
+
+    if [[ -z "${volume_name}" || -z "${container_path}" ]]; then
+      echo "Warning: CODEX_VOLUME_MOUNTS entry '${volume_mount}' is invalid; expected 'volume_name=/mount/path[:ro]'." >&2
+      continue
+    fi
+
+    if [[ "${container_path}" != /* ]]; then
+      echo "Warning: CODEX_VOLUME_MOUNTS container path '${container_path}' must be absolute; skipping mount." >&2
+      continue
+    fi
+
+    extra_mounts+=( --mount "type=volume,src=${volume_name},dst=${container_path}${readonly_suffix}" )
+  done
+fi
+
 if [[ -n "${artifacts_host_dir}" ]]; then
   if [[ -e "${artifacts_host_dir}" ]]; then
     extra_mounts+=( -v "${artifacts_host_dir}:${artifacts_target}" )
@@ -156,9 +193,19 @@ if [[ -n "${artifacts_host_dir}" ]]; then
   fi
 fi
 
-# Run Codex interactively from the current directory, mounting it at /workspace/<folder-name>.
-folder_name="$(basename "$PWD")"
-container_workspace="/workspace/${folder_name}"
+# Run Codex interactively from the current directory by default, unless the user provides an explicit container workspace.
+if [[ -n "${workspace_dir_var}" ]]; then
+  if [[ "${workspace_dir_var}" != /* ]]; then
+    echo "Error: CODEX_WORKSPACE_DIR must be an absolute container path." >&2
+    exit 1
+  fi
+  container_workspace="${workspace_dir_var}"
+  echo "Warning: CODEX_WORKSPACE_DIR sets the container working directory only; it does not mount \$PWD there automatically. Add CODEX_VOLUME_MOUNTS or CODEX_MOUNT_MAPS if you need content at '${container_workspace}'." >&2
+else
+  folder_name="$(basename "$PWD")"
+  container_workspace="/workspace/${folder_name}"
+  extra_mounts+=( -v "${PWD}:${container_workspace}" )
+fi
 
 # Generate a unique container name (override with CONTAINER_NAME if desired).
 CONTAINER_NAME="${CONTAINER_NAME:-codex-$(date +%s)-$RANDOM}"
@@ -183,7 +230,6 @@ fi
 docker run --rm -i \
   ${tty_flag} \
   --name "${CONTAINER_NAME}" \
-  -v "${PWD}:${container_workspace}" \
   -w "${container_workspace}" \
   "${extra_mounts[@]}" \
   "${extra_envs[@]}" \

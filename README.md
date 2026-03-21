@@ -16,6 +16,8 @@ Builds a Codex-enabled image on top of `ghcr.io/openai/codex-universal` and runs
 ## Prepare & run
 - Make the helper reachable everywhere: add the repo to `PATH` (`export PATH="$PATH:/path/to/codex-docker-repo"`) or symlink it (`ln -s "$(pwd)/codex-docker" /usr/local/bin/codex-docker`).
 - Run `codex-docker` from any repo. Docker will pull `ghcr.io/andreimarhatau/codex-docker:latest` on first use. The script mounts the current directory to `/workspace/<folder>` and your `~/.codex` to `/root/.codex` so that you can reuse credentials and history, then forwards all args to the Codex CLI.
+- Set `CODEX_WORKSPACE_DIR=/abs/path/in/container` to use an explicit container working directory instead of bind-mounting `"$PWD"` to `/workspace/<folder>`. This changes `-w` only; it does not mount `"$PWD"` there automatically.
+- Set `CODEX_VOLUME_MOUNTS=volume_name=/mount/path[:ro],...` to attach Docker named volumes with `--mount type=volume,...`.
 
 ## Install with Homebrew
 ```sh
@@ -71,3 +73,4 @@ This repo runs dependabot every day to update base codex-universal image, and Co
 - Set `CODEX_MOUNT_PATHS_RO=/abs/path1:/abs/path2` to bind-mount additional host paths into the container read-only.
 - Set `CODEX_MOUNT_MAPS=/host/path=/container/path` to bind-mount host paths into different writable container paths. Multiple mappings are supported via `:` separators, for example: `CODEX_MOUNT_MAPS=/opt/data=/mnt/data:/tmp/cache=/var/cache/shared`.
 - Set `CODEX_MOUNT_MAPS_RO=/host/path=/container/path` to bind-mount host paths into different read-only container paths. Multiple mappings are supported via `:` separators, for example: `CODEX_MOUNT_MAPS_RO=/var/run/docker.sock=/tmp/docker.sock:/opt/data=/mnt/data`.
+- Set `CODEX_VOLUME_MOUNTS=cache=/var/cache/tooling,repo-state=/workspace/state:ro` to mount named Docker volumes without requiring matching host paths.
