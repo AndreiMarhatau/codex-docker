@@ -4,10 +4,18 @@ set -euo pipefail
 IMAGE_NAME="${IMAGE_NAME:-ghcr.io/andreimarhatau/codex-docker@sha256:f1c3387622ea1163a83fc10c9e796d47e14c09bc0b4722ef5b6740038a8de8dc}"
 
 extra_mounts=()
-if [[ -d "${HOME}/.codex" ]]; then
-  extra_mounts+=( -v "${HOME}/.codex:/root/.codex" )
+host_codex_home="${CODEX_HOME:-${HOME}/.codex}"
+container_codex_home="/root/.codex"
+codex_home_source_label="${HOME}/.codex"
+if [[ -n "${CODEX_HOME:-}" ]]; then
+  codex_home_source_label="${CODEX_HOME}"
+  container_codex_home="${CODEX_HOME}"
+fi
+
+if [[ -d "${host_codex_home}" ]]; then
+  extra_mounts+=( -v "${host_codex_home}:${container_codex_home}" )
 else
-  echo "Warning: ${HOME}/.codex not found; running without host Codex config." >&2
+  echo "Warning: Codex home '${codex_home_source_label}' not found; running without host Codex config." >&2
 fi
 
 mount_paths_var="${CODEX_MOUNT_PATHS:-}"
@@ -21,6 +29,9 @@ artifacts_target="/root/.artifacts"
 
 passthrough_envs_var="${CODEX_PASSTHROUGH_ENV:-}"
 extra_envs=()
+if [[ -n "${CODEX_HOME:-}" ]]; then
+  extra_envs+=( -e "CODEX_HOME" )
+fi
 should_passthrough_env() {
   local env_name="$1"
   case "${env_name}" in
@@ -158,11 +169,11 @@ if [[ -n "${volume_mounts_var}" ]]; then
     fi
 
     if [[ "${volume_mount}" != *=* ]]; then
-      echo "Warning: CODEX_VOLUME_MOUNTS entry '${volume_mount}' is invalid; expected 'volume_name=/mount/path[:ro]'." >&2
+      echo "Warning: CODEX_VOLUME_MOUNTS entry '${volume_mount}' is invalid; expected 'volume_name[/subdir]=/mount/path[:ro]'." >&2
       continue
     fi
 
-    volume_name="${volume_mount%%=*}"
+    volume_spec="${volume_mount%%=*}"
     mount_spec="${volume_mount#*=}"
     readonly_suffix=""
     container_path="${mount_spec}"
@@ -171,8 +182,8 @@ if [[ -n "${volume_mounts_var}" ]]; then
       container_path="${mount_spec%:ro}"
     fi
 
-    if [[ -z "${volume_name}" || -z "${container_path}" ]]; then
-      echo "Warning: CODEX_VOLUME_MOUNTS entry '${volume_mount}' is invalid; expected 'volume_name=/mount/path[:ro]'." >&2
+    if [[ -z "${volume_spec}" || -z "${container_path}" ]]; then
+      echo "Warning: CODEX_VOLUME_MOUNTS entry '${volume_mount}' is invalid; expected 'volume_name[/subdir]=/mount/path[:ro]'." >&2
       continue
     fi
 
@@ -181,7 +192,23 @@ if [[ -n "${volume_mounts_var}" ]]; then
       continue
     fi
 
-    extra_mounts+=( --mount "type=volume,src=${volume_name},dst=${container_path}${readonly_suffix}" )
+    volume_name="${volume_spec%%/*}"
+    volume_subpath=""
+    if [[ "${volume_spec}" == */* ]]; then
+      volume_subpath="${volume_spec#*/}"
+    fi
+
+    if [[ -z "${volume_name}" ]]; then
+      echo "Warning: CODEX_VOLUME_MOUNTS entry '${volume_mount}' is invalid; expected 'volume_name[/subdir]=/mount/path[:ro]'." >&2
+      continue
+    fi
+
+    mount_arg="type=volume,src=${volume_name},dst=${container_path}"
+    if [[ -n "${volume_subpath}" ]]; then
+      mount_arg+=",volume-subpath=${volume_subpath}"
+    fi
+    mount_arg+="${readonly_suffix}"
+    extra_mounts+=( --mount "${mount_arg}" )
   done
 fi
 

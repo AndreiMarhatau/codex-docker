@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-codex_home="/root/.codex"
+codex_home="${CODEX_HOME:-/root/.codex}"
 container_instructions_file="/usr/local/share/codex/developer-instructions.md"
 
 mkdir -p "${codex_home}"
