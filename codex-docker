@@ -28,9 +28,42 @@ artifacts_host_dir="${CODEX_ARTIFACTS_DIR:-}"
 artifacts_target="/root/.artifacts"
 
 passthrough_envs_var="${CODEX_PASSTHROUGH_ENV:-}"
-extra_envs=()
+container_env_prefix="CODEX_CONTAINER_ENV_"
+container_env_names=()
+container_env_specs=()
+set_container_env_arg() {
+  local env_name="$1"
+  local env_spec="$2"
+  local i
+
+  if [[ -z "${env_name}" ]]; then
+    return
+  fi
+
+  for i in "${!container_env_names[@]}"; do
+    if [[ "${container_env_names[$i]}" == "${env_name}" ]]; then
+      container_env_specs[$i]="${env_spec}"
+      return
+    fi
+  done
+
+  container_env_names+=( "${env_name}" )
+  container_env_specs+=( "${env_spec}" )
+}
+
+passthrough_container_env() {
+  local env_name="$1"
+  set_container_env_arg "${env_name}" "${env_name}"
+}
+
+set_container_env_value() {
+  local env_name="$1"
+  local env_value="$2"
+  set_container_env_arg "${env_name}" "${env_name}=${env_value}"
+}
+
 if [[ -n "${CODEX_HOME:-}" ]]; then
-  extra_envs+=( -e "CODEX_HOME" )
+  passthrough_container_env "CODEX_HOME"
 fi
 should_passthrough_env() {
   local env_name="$1"
@@ -55,17 +88,37 @@ if [[ -n "${passthrough_envs_var}" ]]; then
   IFS=',' read -r -a passthrough_envs <<< "${passthrough_envs_var}"
   for env_name in "${passthrough_envs[@]}"; do
     if [[ -n "${env_name}" ]]; then
-      extra_envs+=( -e "${env_name}" )
+      passthrough_container_env "${env_name}"
     fi
   done
 else
   while IFS= read -r -d '' env_entry; do
     env_name="${env_entry%%=*}"
     if should_passthrough_env "${env_name}"; then
-      extra_envs+=( -e "${env_name}" )
+      passthrough_container_env "${env_name}"
     fi
   done < <(env -0)
 fi
+
+while IFS= read -r -d '' env_entry; do
+  env_name="${env_entry%%=*}"
+  if [[ "${env_name}" != "${container_env_prefix}"* ]]; then
+    continue
+  fi
+
+  container_env_name="${env_name#${container_env_prefix}}"
+  if [[ -z "${container_env_name}" ]]; then
+    continue
+  fi
+
+  container_env_value="${env_entry#*=}"
+  set_container_env_value "${container_env_name}" "${container_env_value}"
+done < <(env -0)
+
+extra_envs=()
+for env_spec in "${container_env_specs[@]}"; do
+  extra_envs+=( -e "${env_spec}" )
+done
 
 if [[ -n "${mount_paths_var}" ]]; then
   IFS=':' read -r -a mount_paths <<< "${mount_paths_var}"
