@@ -40,10 +40,16 @@ If your Docker socket lives elsewhere, pass the full path instead (the socket wi
 ## Pass through environment variables
 - Any non-system environment variables from the host are passed into the container by default.
 - Example: `FOO=BAR codex-docker` makes `FOO=BAR` available inside the container.
-- To explicitly control which vars are forwarded (including ones normally skipped), set `CODEX_PASSTHROUGH_ENV`:
+- `DOCKER_*` variables are excluded from the default auto-forwarding, because they would also affect the outer `docker run` command that launches the Codex container.
+- To explicitly control which existing host vars are forwarded by name (including ones normally skipped), set `CODEX_PASSTHROUGH_ENV`:
   ```sh
   CODEX_PASSTHROUGH_ENV=FOO,BAR,PATH FOO=BAR BAR=BAZ codex-docker
   ```
+- `CODEX_PASSTHROUGH_ENV` still reads the value from the environment where you invoke `codex-docker`. If you need to set a container-only value without affecting the outer Docker CLI, define `CODEX_CONTAINER_ENV_<NAME>` instead:
+  ```sh
+  CODEX_CONTAINER_ENV_DOCKER_HOST=tcp://host.docker.internal:2375 codex-docker
+  ```
+- `CODEX_CONTAINER_ENV_<NAME>` writes `NAME=value` directly into the inner `docker run` invocation and overrides any name-only forwarding for the same variable.
 
 ## Update to the latest image
 This repo runs dependabot every day to update base codex-universal image, and Codex CLI version.
