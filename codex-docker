@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_NAME="${IMAGE_NAME:-ghcr.io/andreimarhatau/codex-docker@sha256:406c0a77135f0291162f48769a965f173396f51f01dddaeab3e4d535c2ecf81f}"
+IMAGE_NAME="${IMAGE_NAME:-ghcr.io/andreimarhatau/codex-docker@sha256:a5b7a53e11a512ce277649bbaa26ee9eabe6543a47c10d13303dd858b4e0d340}"
 
 extra_mounts=()
 host_codex_home="${CODEX_HOME:-${HOME}/.codex}"
