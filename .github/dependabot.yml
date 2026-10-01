@@ -1,4 +1,0 @@
-# Automatic version updates are paused while this project is not in use.
-# Restore the previous configuration from Git history to resume them.
-version: 2
-updates: []
